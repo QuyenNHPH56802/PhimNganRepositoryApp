@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Translator chart values",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["image", "api", "worker", "web"],
+  "properties": {
+    "image": {
+      "type": "object",
+      "required": ["repository", "tag"],
+      "properties": {
+        "repository": { "type": "string" },
+        "tag": { "type": "string" }
+      }
+    },
+    "api": {
+      "type": "object",
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 1, "default": 2 },
+        "resources": { "type": "object" }
+      }
+    },
+    "worker": {
+      "type": "object",
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 1, "default": 2 },
+        "resources": { "type": "object" },
+        "gpus": { "type": "integer", "minimum": 0, "default": 0 }
+      }
+    },
+    "web": {
+      "type": "object",
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 1, "default": 2 }
+      }
+    }
+  }
+}

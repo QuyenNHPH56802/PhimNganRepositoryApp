@@ -1,0 +1,8 @@
+{
+  "provider": "tts",
+  "version": 0,
+  "fixtures": [
+    {"id": "tts_001", "vi": "Xin chào các bạn.", "speaker_id": "default", "duration_ms": 1500},
+    {"id": "tts_002", "vi": "Hôm nay thời tiết rất đẹp.", "speaker_id": "default", "duration_ms": 2200}
+  ]
+}

@@ -1,0 +1,21 @@
+name: translator-zh-vi-golden-v0
+version: 0.1.0
+license: CC-BY-SA-4.0
+retention: internal only; never distributed
+record_count: 5
+audio_total_seconds: 0.0
+domains: [news, vlog, review, drama, narration]
+sources:
+  - contributor: ops@team
+    source: in-house
+    notes: Initial seed sentences for Chinese → Vietnamese golden fixtures.
+  - contributor: synthetic
+    source: synthetic
+    reference: scripts/build_golden.py
+    notes: Use `build_golden.py` to expand. Generated content must keep `license=CC-BY-SA-4.0` unless the contributor upgrades per-record.
+
+contribution_policy:
+  - All human-written translations carry `license=CC-BY-SA-4.0`.
+  - All synthetic expansions carry `license=CC0`.
+  - No audio sourced from YouTube / Bilibili / Douyin / TikTok without explicit license.
+  - All voice profiles carry `provenance.contributor` and consent evidence file (storage key) before being allowed for TTS provider access.

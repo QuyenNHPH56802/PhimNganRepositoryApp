@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: {{ .Values.replicas.api }}
+  selector:
+    matchLabels: { app: translator, component: api }
+  template:
+    metadata:
+      labels: { app: translator, component: api }
+    spec:
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}/api:{{ .Values.image.tag }}"
+          envFrom:
+            - configMapRef: { name: translator-config }
+            - secretRef: { name: translator-secret }
+          resources:
+            {{- toYaml .Values.resources.api | nindent 12 }}
+          ports: [{ containerPort: 8000 }]
+          readinessProbe:
+            httpGet: { path: /api/healthz, port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10

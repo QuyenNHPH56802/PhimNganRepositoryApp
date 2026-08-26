@@ -1,0 +1,76 @@
+# Temporal cluster mode.
+#
+# Replaces the dev `temporalio/auto-setup` image with a sharded cluster:
+#   * temporal-frontend (gRPC :7233)
+#   * temporal-history (3 replicas, shardCount=512)
+#   * temporal-matching
+#   * temporal-worker (cron + system workflows)
+#   * temporal-visibility (postgres-backed)
+#
+# Persistent volumes back each history shard.
+# Bring-up:
+#   docker compose -f docker-compose.cluster.yml --env-file .env.cluster up -d
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: temporal
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    networks: [translator]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal -d temporal"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+  temporal-frontend:
+    image: temporalio/server:1.24
+    restart: unless-stopped
+    command: ["sh", "-c", "temporal server start-headless --service=frontend --grpc-hostname=0.0.0.0 --grpc-port=7233 --http-port=7243 --metrics-port=9090 --db=postgres --db-plugin=postgres --postgres-host=postgres --postgres-port=5432 --postgres-user=temporal --postgres-password=${POSTGRES_PASSWORD} --postgres-db=temporal --enable-pprof"]
+    depends_on: { postgres: { condition: service_healthy } }
+    networks: [translator]
+    ports: ["7233:7233", "7243:7243", "9090:9090"]
+
+  temporal-history:
+    image: temporalio/server:1.24
+    restart: unless-stopped
+    command: ["sh", "-c", "temporal server start-headless --service=history --grpc-hostname=0.0.0.0 --grpc-port=7234 --metrics-port=9091 --db=postgres --db-plugin=postgres --postgres-host=postgres --postgres-port=5432 --postgres-user=temporal --postgres-password=${POSTGRES_PASSWORD} --postgres-db=temporal --num-history-shards=512 --history-archival-uri= --visibility-archival-uri= --enable-pprof"]
+    depends_on: { postgres: { condition: service_healthy } }
+    networks: [translator]
+    deploy:
+      replicas: 3
+      resources:
+        limits: { cpus: "2", memory: 6G }
+        reservations: { cpus: "0.5", memory: 1G }
+
+  temporal-matching:
+    image: temporalio/server:1.24
+    restart: unless-stopped
+    command: ["sh", "-c", "temporal server start-headless --service=matching --grpc-hostname=0.0.0.0 --grpc-port=7235 --metrics-port=9092 --db=postgres --db-plugin=postgres --postgres-host=postgres --postgres-port=5432 --postgres-user=temporal --postgres-password=${POSTGRES_PASSWORD} --postgres-db=temporal --enable-pprof"]
+    depends_on: { postgres: { condition: service_healthy } }
+    networks: [translator]
+
+  temporal-worker:
+    image: temporalio/server:1.24
+    restart: unless-stopped
+    command: ["sh", "-c", "temporal server start-headless --service=worker --grpc-hostname=0.0.0.0 --grpc-port=7239 --metrics-port=9093 --db=postgres --db-plugin=postgres --postgres-host=postgres --postgres-port=5432 --postgres-user=temporal --postgres-password=${POSTGRES_PASSWORD} --postgres-db=temporal --enable-pprof"]
+    depends_on: { postgres: { condition: service_healthy } }
+    networks: [translator]
+
+  temporal-visibility:
+    image: temporalio/server:1.24
+    restart: unless-stopped
+    command: ["sh", "-c", "temporal server start-headless --service=visibility --grpc-hostname=0.0.0.0 --grpc-port=7238 --metrics-port=9094 --db=postgres --db-plugin=postgres --postgres-host=postgres --postgres-port=5432 --postgres-user=temporal --postgres-password=${POSTGRES_PASSWORD} --postgres-db=temporal --visibility-archival-uri= --enable-pprof"]
+    depends_on: { postgres: { condition: service_healthy } }
+    networks: [translator]
+
+networks:
+  translator:
+    driver: bridge
+
+volumes:
+  pgdata:

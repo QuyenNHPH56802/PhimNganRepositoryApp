@@ -1,0 +1,24 @@
+replicas:
+  api: 5
+  web: 3
+  workerAsr: 4
+  workerTtsGpu: 3
+  workerTtsCpu: 2
+  workerSeparation: 3
+  workerOcr: 3
+  workerRemoval: 2
+  workerCpu: 6
+  workerDiarize: 2
+  workerAlign: 2
+  workerTranslate: 6
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: translator.example.com
+      paths:
+        - path: /
+          service: web
+        - path: /api
+          service: api

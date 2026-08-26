@@ -1,0 +1,8 @@
+{
+  "provider": "translate",
+  "version": 0,
+  "fixtures": [
+    {"id": "tr_001", "zh": "大家好，欢迎收看今天的节目。", "reference_vi": "Xin chào mọi người, chào mừng quý vị theo dõi chương trình hôm nay."},
+    {"id": "tr_002", "zh": "今天的天气非常好。", "reference_vi": "Hôm nay thời tiết rất đẹp."}
+  ]
+}

@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: {{ .Values.replicas.web }}
+  selector:
+    matchLabels: { app: translator, component: web }
+  template:
+    metadata:
+      labels: { app: translator, component: web }
+    spec:
+      containers:
+        - name: web
+          image: "{{ .Values.image.repository }}/web:{{ .Values.image.tag }}"
+          env:
+            - name: NEXT_PUBLIC_API_BASE
+              value: {{ .Values.config.apiBase | default "http://api:80/api" | quote }}
+          ports: [{ containerPort: 3000 }]

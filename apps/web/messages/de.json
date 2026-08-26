@@ -1,0 +1,37 @@
+{
+  "common": {
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "loading": "Lädt…",
+    "forbidden": "403 — verboten",
+    "yes": "Ja",
+    "no": "Nein"
+  },
+  "admin": {
+    "audit": "Audit-Log",
+    "voice": "Stimmprofile",
+    "dataset": "Datensatz"
+  },
+  "qualityMode": {
+    "fast": "SCHNELL",
+    "balanced": "AUSGEWOGEN",
+    "high": "HOCH"
+  },
+  "errors": {
+    "language_pair_unsupported": "Sprachpaar nicht unterstützt",
+    "consent_required": "Einwilligung erforderlich",
+    "consent_revoked": "Einwilligung widerrufen"
+  },
+  "commands": {
+    "run": "Ausführen",
+    "stop": "Stoppen",
+    "upload": "Hochladen",
+    "download": "Herunterladen"
+  },
+  "status": {
+    "queued": "In Warteschlange",
+    "processing": "Wird verarbeitet",
+    "ready": "Bereit",
+    "failed": "Fehlgeschlagen"
+  }
+}

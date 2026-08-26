@@ -1,0 +1,74 @@
+--- Provider thresholds.
+# Each provider has:
+#   min:   absolute floor (metric must stay above)
+#   max:   absolute ceiling (metric must stay below)
+#   regression: allowed delta vs baseline (positive for "worse is smaller")
+
+asr:
+  wer:
+    max: 0.20
+    regression: 0.03
+  cer:
+    max: 0.10
+    regression: 0.02
+
+translate:
+  bleu:
+    min: 25.0
+    regression: -2.0
+  chrf:
+    min: 50.0
+    regression: -3.0
+
+subtitle:
+  cps:
+    min: 14.0
+    max: 18.0
+    regression: 2.0
+  overlaps:
+    max: 0
+    regression: 0
+
+tts:
+  mos_proxy:
+    min: 3.0
+    max: 5.0
+    regression: -0.2
+
+ocr:
+  f1:
+    min: 0.6
+    regression: -0.05
+  precision:
+    min: 0.6
+    regression: -0.05
+  recall:
+    min: 0.6
+    regression: -0.05
+
+text_removal:
+  psnr:
+    min: 28.0
+    regression: -2.0
+
+alignment:
+  alignment_mse:
+    max: 250.0
+    regression: 50.0
+
+qa_multispeaker:
+  per_speaker_wer_mean:
+    max: 0.15
+    regression: 0.02
+  missing_speaker_count:
+    max: 0
+    regression: 0
+
+mixer:
+  loudness_delta:
+    max: 1.5
+    regression: 0.5
+  loudness_lufs:
+    min: -17.5
+    max: -14.5
+    regression: 1.0

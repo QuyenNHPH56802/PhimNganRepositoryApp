@@ -1,0 +1,47 @@
+{
+  "title": "Translator — Cluster",
+  "uid": "translator-cluster",
+  "tags": ["translator", "cluster"],
+  "schemaVersion": 36,
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Node CPU",
+      "targets": [
+        { "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)", "legendFormat": "{{instance}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "GPU memory usage (GiB)",
+      "targets": [
+        { "expr": "translator_gpu_memory_used_bytes / 1024 / 1024 / 1024", "legendFormat": "gpu {{gpu_index}} used", "refId": "A" },
+        { "expr": "translator_gpu_memory_total_bytes / 1024 / 1024 / 1024", "legendFormat": "gpu {{gpu_index}} total", "refId": "B" }
+      ],
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "GPU utilization %",
+      "targets": [
+        { "expr": "translator_gpu_utilization", "legendFormat": "gpu {{gpu_index}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 6 }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Pod restart count",
+      "targets": [
+        { "expr": "kube_pod_container_status_restarts_total{namespace=\"translator\"}", "legendFormat": "{{pod}}", "refId": "A" }
+      ],
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 6 }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-separation
+spec:
+  replicas: {{ .Values.replicas.workerSeparation }}
+  selector:
+    matchLabels: { app: translator, component: worker-separation }
+  template:
+    metadata:
+      labels: { app: translator, component: worker-separation }
+    spec:
+      nodeSelector:
+        accelerator: nvidia-tesla-a100
+      containers:
+        - name: worker-separation
+          image: "{{ .Values.image.repository }}/worker:{{ .Values.image.tag }}"
+          envFrom:
+            - configMapRef: { name: translator-config }
+            - secretRef: { name: translator-secret }
+          env:
+            - name: TRANSLATOR_TASK_QUEUE
+              value: "separation-queue"
+          resources:
+            requests: { cpu: "1", memory: "4Gi" }
+            limits:   { cpu: "6", memory: "16Gi" }

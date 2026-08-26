@@ -1,0 +1,16 @@
+replicas:
+  api: 1
+  web: 1
+  workerAsr: 1
+  workerTtsGpu: 1
+  workerTtsCpu: 1
+  workerSeparation: 1
+  workerOcr: 1
+  workerRemoval: 1
+  workerCpu: 2
+  workerDiarize: 1
+  workerAlign: 1
+  workerTranslate: 1
+
+ingress:
+  enabled: false

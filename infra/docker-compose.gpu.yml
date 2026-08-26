@@ -1,0 +1,147 @@
+# Worker pools — production (GPU + CPU).
+#
+# Each pool is a separate deployment, pinned to a task queue.
+# GPU pools require `runtime: nvidia`; deploy on GPU nodes.
+#
+# Bring-up:
+#   docker compose -f docker-compose.gpu.yml --env-file .env.prod up -d
+
+services:
+  worker-asr:
+    build: ./worker.Dockerfile
+    runtime: nvidia
+    restart: unless-stopped
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${ASR_GPU_IDS:-all}
+      TRANSLATOR_TEMPORAL_HOST: temporal-frontend:7233
+      TRANSLATOR_TASK_QUEUE: asr-queue
+    networks: [translator]
+    deploy:
+      replicas: 2
+      resources:
+        limits: { cpus: "6", memory: 16G }
+        reservations: { cpus: "1", memory: 2G }
+
+  worker-diarize:
+    build: ./worker.Dockerfile
+    runtime: nvidia
+    restart: unless-stopped
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${DIARIZE_GPU_IDS:-all}
+      TRANSLATOR_TEMPORAL_HOST: temporal-frontend:7233
+      TRANSLATOR_TASK_QUEUE: diarize-queue
+    networks: [translator]
+    deploy:
+      replicas: 1
+      resources:
+        limits: { cpus: "3", memory: 8G }
+        reservations: { cpus: "0.5", memory: 1G }
+
+  worker-align:
+    build: ./worker.Dockerfile
+    runtime: nvidia
+    restart: unless-stopped
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${ALIGN_GPU_IDS:-all}
+      TRANSLATOR_TEMPORAL_HOST: temporal-frontend:7233
+      TRANSLATOR_TASK_QUEUE: align-queue
+    networks: [translator]
+    deploy:
+      replicas: 1
+      resources:
+        limits: { cpus: "2", memory: 4G }
+
+  worker-translate:
+    build: ./worker.Dockerfile
+    restart: unless-stopped
+    environment:
+      TRANSLATOR_TEMPORAL_HOST: temporal-frontend:7233
+      TRANSLATOR_TASK_QUEUE: translate-queue
+    networks: [translator]
+    deploy:
+      replicas: 4
+      resources:
+        limits: { cpus: "2", memory: 2G }
+
+  worker-tts-gpu:
+    build: ./worker.Dockerfile
+    runtime: nvidia
+    restart: unless-stopped
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${TTS_GPU_IDS:-all}
+      TRANSLATOR_TEMPORAL_HOST: temporal-frontend:7233
+      TRANSLATOR_TASK_QUEUE: tts-queue
+    networks: [translator]
+    deploy:
+      replicas: 2
+      resources:
+        limits: { cpus: "8", memory: 24G }
+        reservations: { cpus: "2", memory: 4G }
+
+  worker-tts-cpu:
+    build: ./worker.Dockerfile
+    restart: unless-stopped
+    environment:
+      TRANSLATOR_TEMPORAL_HOST: temporal-frontend:7233
+      TRANSLATOR_TASK_QUEUE: tts-cpu-queue
+    networks: [translator]
+    deploy:
+      replicas: 2
+      resources:
+        limits: { cpus: "4", memory: 4G }
+
+  worker-separation:
+    build: ./worker.Dockerfile
+    runtime: nvidia
+    restart: unless-stopped
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${SEPARATION_GPU_IDS:-all}
+      TRANSLATOR_TEMPORAL_HOST: temporal-frontend:7233
+      TRANSLATOR_TASK_QUEUE: separation-queue
+    networks: [translator]
+    deploy:
+      replicas: 2
+      resources:
+        limits: { cpus: "6", memory: 16G }
+
+  worker-ocr:
+    build: ./worker.Dockerfile
+    restart: unless-stopped
+    environment:
+      TRANSLATOR_TEMPORAL_HOST: temporal-frontend:7233
+      TRANSLATOR_TASK_QUEUE: ocr-queue
+    networks: [translator]
+    deploy:
+      replicas: 2
+      resources:
+        limits: { cpus: "4", memory: 8G }
+
+  worker-removal:
+    build: ./worker.Dockerfile
+    runtime: nvidia
+    restart: unless-stopped
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${REMOVAL_GPU_IDS:-all}
+      TRANSLATOR_TEMPORAL_HOST: temporal-frontend:7233
+      TRANSLATOR_TASK_QUEUE: text-removal-queue
+    networks: [translator]
+    deploy:
+      replicas: 1
+      resources:
+        limits: { cpus: "6", memory: 16G }
+
+  worker-cpu:
+    build: ./worker.Dockerfile
+    restart: unless-stopped
+    environment:
+      TRANSLATOR_TEMPORAL_HOST: temporal-frontend:7233
+      TRANSLATOR_TASK_QUEUE: cpu-queue
+    networks: [translator]
+    deploy:
+      replicas: 4
+      resources:
+        limits: { cpus: "4", memory: 4G }
+
+networks:
+  translator:
+    driver: bridge

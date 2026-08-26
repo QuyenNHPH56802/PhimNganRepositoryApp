@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: translator-config
+data:
+  TRANSLATOR_TEMPORAL_HOST: {{ .Values.config.temporalHost }}
+  TRANSLATOR_REDIS_URL: {{ .Values.config.redisUrl }}
+  TRANSLATOR_STORAGE_BACKEND: {{ .Values.config.storageBackend }}
+  TRANSLATOR_SHEDDER_SOFT: "50"
+  TRANSLATOR_SHEDDER_HARD: "100"

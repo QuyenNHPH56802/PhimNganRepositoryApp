@@ -1,0 +1,37 @@
+{
+  "common": {
+    "save": "Lưu",
+    "cancel": "Huỷ",
+    "loading": "Đang tải…",
+    "forbidden": "403 — không có quyền",
+    "yes": "Có",
+    "no": "Không"
+  },
+  "admin": {
+    "audit": "Nhật ký",
+    "voice": "Hồ sơ giọng",
+    "dataset": "Tập dữ liệu"
+  },
+  "qualityMode": {
+    "fast": "NHANH",
+    "balanced": "CÂN BẰNG",
+    "high": "CAO"
+  },
+  "errors": {
+    "language_pair_unsupported": "Cặp ngôn ngữ chưa được hỗ trợ",
+    "consent_required": "Yêu cầu consent của speaker",
+    "consent_revoked": "Consent đã bị thu hồi"
+  },
+  "commands": {
+    "run": "Chạy",
+    "stop": "Dừng",
+    "upload": "Tải lên",
+    "download": "Tải về"
+  },
+  "status": {
+    "queued": "Đang chờ",
+    "processing": "Đang xử lý",
+    "ready": "Sẵn sàng",
+    "failed": "Lỗi"
+  }
+}

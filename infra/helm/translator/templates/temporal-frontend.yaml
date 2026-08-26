@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: translator, component: temporal-frontend }
+  template:
+    metadata:
+      labels: { app: translator, component: temporal-frontend }
+    spec:
+      containers:
+        - name: temporal-frontend
+          image: temporalio/server:1.24
+          args:
+            - server
+            - start-headless
+            - --service=frontend
+            - --grpc-hostname=0.0.0.0
+            - --grpc-port=7233
+            - --http-port=7243
+            - --metrics-port=9090
+            - --db=postgres
+            - --db-plugin=postgres
+            - --postgres-host=postgres
+            - --postgres-port=5432
+            - --postgres-user=translator
+            - --postgres-db=translator
+          envFrom:
+            - secretRef: { name: translator-secret }
+          ports: [{ containerPort: 7233 }]

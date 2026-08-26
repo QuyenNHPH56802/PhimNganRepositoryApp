@@ -1,0 +1,37 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "loading": "Loading…",
+    "forbidden": "403 — forbidden",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "admin": {
+    "audit": "Audit log",
+    "voice": "Voice profiles",
+    "dataset": "Dataset"
+  },
+  "qualityMode": {
+    "fast": "FAST",
+    "balanced": "BALANCED",
+    "high": "HIGH"
+  },
+  "errors": {
+    "language_pair_unsupported": "Language pair not supported",
+    "consent_required": "Speaker consent required",
+    "consent_revoked": "Consent has been revoked"
+  },
+  "commands": {
+    "run": "Run",
+    "stop": "Stop",
+    "upload": "Upload",
+    "download": "Download"
+  },
+  "status": {
+    "queued": "Queued",
+    "processing": "Processing",
+    "ready": "Ready",
+    "failed": "Failed"
+  }
+}

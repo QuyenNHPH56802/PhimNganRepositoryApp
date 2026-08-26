@@ -1,0 +1,8 @@
+{
+  "provider": "text_removal",
+  "version": 0,
+  "fixtures": [
+    {"id": "tr_inp_001", "source_image": "datasets/golden/text-removal/frames/burn_001.png", "expected_image": "datasets/golden/text-removal/frames/burn_001.expected.png", "strategy": "inpaint_lama"},
+    {"id": "tr_inp_002", "source_image": "datasets/golden/text-removal/frames/burn_002.png", "expected_image": "datasets/golden/text-removal/frames/burn_002.expected.png", "strategy": "telea"}
+  ]
+}

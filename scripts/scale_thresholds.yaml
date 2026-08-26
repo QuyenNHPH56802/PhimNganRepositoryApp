@@ -1,0 +1,9 @@
+--- Scale test thresholds.
+
+latency_seconds:
+  p50: 10.0
+  p95: 60.0
+  p99: 120.0
+
+error_rate:
+  max: 0.01

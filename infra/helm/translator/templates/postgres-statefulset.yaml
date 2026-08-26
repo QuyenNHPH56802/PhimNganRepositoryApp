@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels: { app: translator, component: postgres }
+  template:
+    metadata:
+      labels: { app: translator, component: postgres }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          envFrom:
+            - secretRef: { name: translator-secret }
+          env:
+            - name: POSTGRES_DB
+              value: translator
+            - name: POSTGRES_USER
+              value: translator
+          ports: [{ containerPort: 5432 }]
+          volumeMounts:
+            - { name: pgdata, mountPath: /var/lib/postgresql/data }
+  volumeClaimTemplates:
+    - metadata: { name: pgdata }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: { requests: { storage: 200Gi } }

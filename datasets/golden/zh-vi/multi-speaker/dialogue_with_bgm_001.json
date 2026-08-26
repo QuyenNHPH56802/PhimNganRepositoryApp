@@ -1,0 +1,12 @@
+{
+  "id": "dialogue_with_bgm_001",
+  "domain": "vlog",
+  "license": "CC-BY-SA-4.0",
+  "provenance": { "contributor": "ops@team", "source": "in-house" },
+  "speakers": ["host"],
+  "bgm": "datasets/golden/zh-vi/multi-speaker/bgm.wav",
+  "turns": [
+    { "speaker": "host", "start_ms": 0,    "end_ms": 2500, "zh": "大家好，欢迎收看今天的节目。", "vi": "Xin chào mọi người, chào mừng quý vị theo dõi chương trình hôm nay." },
+    { "speaker": "host", "start_ms": 2600, "end_ms": 5400, "zh": "今天我们去一家新开的咖啡店。", "vi": "Hôm nay chúng ta sẽ đến một quán cà phê mới mở." }
+  ]
+}

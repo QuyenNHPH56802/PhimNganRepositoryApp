@@ -1,0 +1,37 @@
+{
+  "common": {
+    "save": "บันทึก",
+    "cancel": "ยกเลิก",
+    "loading": "กำลังโหลด…",
+    "forbidden": "403 — ไม่มีสิทธิ์",
+    "yes": "ใช่",
+    "no": "ไม่"
+  },
+  "admin": {
+    "audit": "บันทึกตรวจสอบ",
+    "voice": "โปรไฟล์เสียง",
+    "dataset": "ชุดข้อมูล"
+  },
+  "qualityMode": {
+    "fast": "เร็ว",
+    "balanced": "สมดุล",
+    "high": "คุณภาพสูง"
+  },
+  "errors": {
+    "language_pair_unsupported": "คู่ภาษาไม่รองรับ",
+    "consent_required": "ต้องได้รับความยินยอม",
+    "consent_revoked": "ความยินยอมถูกเพิกถอน"
+  },
+  "commands": {
+    "run": "เริ่ม",
+    "stop": "หยุด",
+    "upload": "อัปโหลด",
+    "download": "ดาวน์โหลด"
+  },
+  "status": {
+    "queued": "เข้าคิว",
+    "processing": "กำลังประมวลผล",
+    "ready": "พร้อม",
+    "failed": "ล้มเหลว"
+  }
+}

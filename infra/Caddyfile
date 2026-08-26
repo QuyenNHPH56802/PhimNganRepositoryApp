@@ -1,0 +1,43 @@
+# Caddy reverse proxy for Translator.
+#
+# Routes:
+#   /                -> web (Next.js)
+#   /api/*           -> api (FastAPI)
+#   /temporal/*      -> Temporal UI
+#   /prometheus/*    -> Prometheus (basic auth)
+#   /grafana/*       -> Grafana (basic auth)
+#
+# For real domains, replace `tls internal` with `tls <email>` and supply
+# `PUBLIC_DOMAIN=translator.example.com`.
+
+import basicpath
+import basicauth
+
+{% set MON_USER = env "MON_USER" %}
+{% set MON_PASSWORD = env "MON_PASSWORD" %}
+
+http://localhost, http://:80 {
+    redir https://{host}{uri} permanent
+}
+
+https://${PUBLIC_DOMAIN:-localhost}, https://localhost {
+    tls internal
+
+    basicauth /prometheus/* {
+        {$MON_USER} {$MON_PASSWORD}
+    }
+    basicauth /grafana/* {
+        {$MON_USER} {$MON_PASSWORD}
+    }
+    basicauth /alertmanager/* {
+        {$MON_USER} {$MON_PASSWORD}
+    }
+
+    encode zstd gzip
+    reverse_proxy /api/* api:8000
+    reverse_proxy /temporal/* temporal:8233
+    reverse_proxy /prometheus/* prometheus:9090
+    reverse_proxy /grafana/* grafana:3000
+    reverse_proxy /alertmanager/* alertmanager:9093
+    reverse_proxy /* web:3000
+}

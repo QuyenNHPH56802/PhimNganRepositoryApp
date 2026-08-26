@@ -1,0 +1,8 @@
+{
+  "provider": "asr",
+  "version": 0,
+  "fixtures": [
+    {"id": "asr_001", "audio_path": "datasets/golden/zh-vi/audio/line_a1b2c3d4.wav", "reference_zh": "大家好，欢迎收看今天的节目。"},
+    {"id": "asr_002", "audio_path": "datasets/golden/zh-vi/audio/line_d4c3b2a1.wav", "reference_zh": "今天的天气非常好。"}
+  ]
+}

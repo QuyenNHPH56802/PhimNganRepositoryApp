@@ -1,0 +1,35 @@
+{
+  "title": "Translator — Provider Cost",
+  "uid": "translator-cost",
+  "tags": ["translator", "cost"],
+  "schemaVersion": 36,
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Provider calls/day",
+      "targets": [
+        { "expr": "sum by (provider)(increase(translator_provider_calls_total[1d]))", "legendFormat": "{{provider}}", "refId": "A" }
+      ],
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Provider unit cost (USD / 1k calls)",
+      "targets": [
+        { "expr": "sum by (provider)(increase(translator_provider_calls_total[1d])) * on(provider) group_left translator_provider_unit_cost_usd", "format": "table", "refId": "A" }
+      ],
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Daily spend (USD)",
+      "targets": [
+        { "expr": "sum by (provider)(increase(translator_provider_calls_total[1d])) * on(provider) group_left translator_provider_unit_cost_usd", "refId": "A" }
+      ],
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 6 }
+    }
+  ]
+}

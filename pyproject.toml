@@ -1,0 +1,71 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "translator"
+version = "1.0.0"
+description = "Multimodal video/audio localization orchestrator"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Translator Team" }]
+dependencies = [
+    "pydantic>=2.6",
+    "pydantic-settings>=2.0",
+    "sqlalchemy>=2.0",
+    "temporalio>=1.4",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+]
+
+[project.optional-dependencies]
+api = [
+    "python-multipart>=0.0.9",
+    "python-jose[cryptography]>=3.3",
+    "prometheus-client>=0.20",
+]
+worker = [
+    "temporalio>=1.4",
+    "ffmpeg-python>=0.2",
+]
+shared = [
+    "pyyaml>=6",
+]
+all = [
+    "translator[api,worker,shared]",
+]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "mypy>=1.8",
+    "ruff>=0.4",
+    "pip-audit>=2.7",
+    "build>=1.2",
+]
+
+[project.urls]
+Homepage = "https://translator.local"
+Documentation = "https://translator.local/docs"
+Repository = "https://example.com/translator"
+
+[tool.setuptools]
+packages = [
+    "translator_shared",
+    "translator_api",
+    "translator_worker",
+]
+
+[tool.setuptools.package-dir]
+translator_shared = "packages/shared/python/translator_shared"
+translator_api = "apps/api/python/translator_api"
+translator_worker = "apps/worker/python/translator_worker"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true

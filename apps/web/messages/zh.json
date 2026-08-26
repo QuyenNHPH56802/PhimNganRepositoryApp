@@ -1,0 +1,37 @@
+{
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "loading": "加载中…",
+    "forbidden": "403 — 无权限",
+    "yes": "是",
+    "no": "否"
+  },
+  "admin": {
+    "audit": "审计日志",
+    "voice": "声音档案",
+    "dataset": "数据集"
+  },
+  "qualityMode": {
+    "fast": "快速",
+    "balanced": "均衡",
+    "high": "高质量"
+  },
+  "errors": {
+    "language_pair_unsupported": "语言对暂不支持",
+    "consent_required": "需要说话人同意",
+    "consent_revoked": "同意已被撤销"
+  },
+  "commands": {
+    "run": "运行",
+    "stop": "停止",
+    "upload": "上传",
+    "download": "下载"
+  },
+  "status": {
+    "queued": "排队中",
+    "processing": "处理中",
+    "ready": "就绪",
+    "failed": "失败"
+  }
+}

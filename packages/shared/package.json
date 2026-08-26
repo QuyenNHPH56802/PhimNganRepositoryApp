@@ -1,0 +1,16 @@
+{
+  "name": "@translator/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./python/translator_shared/__init__.py",
+  "exports": {
+    ".": "./python/translator_shared/__init__.py"
+  },
+  "scripts": {
+    "lint": "ruff check python"
+  },
+  "devDependencies": {
+    "ruff": "0.6.2"
+  }
+}

@@ -1,0 +1,29 @@
+{{- $name := "worker-asr" -}}
+{{- $taskQueue := "asr-queue" -}}
+{{- $replicas := .Values.replicas.workerAsr -}}
+{{- $resources := .Values.resources.workerAsr -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+spec:
+  replicas: {{ $replicas }}
+  selector:
+    matchLabels: { app: translator, component: {{ $name }} }
+  template:
+    metadata:
+      labels: { app: translator, component: {{ $name }} }
+    spec:
+      nodeSelector:
+        {{- toYaml $resources.nodeSelector | nindent 8 }}
+      containers:
+        - name: {{ $name }}
+          image: "{{ $.Values.image.repository }}/worker:{{ $.Values.image.tag }}"
+          envFrom:
+            - configMapRef: { name: translator-config }
+            - secretRef: { name: translator-secret }
+          env:
+            - name: TRANSLATOR_TASK_QUEUE
+              value: {{ $taskQueue | quote }}
+          resources:
+            {{- omit $resources "nodeSelector" | toYaml | nindent 12 }}

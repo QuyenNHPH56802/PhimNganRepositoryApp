@@ -1,0 +1,27 @@
+image:
+  repository: translator/api
+  tag: "1.0.0"
+
+api:
+  replicas: 2
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+worker:
+  replicas: 2
+  gpus: 0
+  resources:
+    requests:
+      cpu: "1"
+      memory: "1Gi"
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+
+web:
+  replicas: 2

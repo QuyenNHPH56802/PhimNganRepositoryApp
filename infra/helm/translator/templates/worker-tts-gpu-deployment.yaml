@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-tts-gpu
+spec:
+  replicas: {{ .Values.replicas.workerTtsGpu }}
+  selector:
+    matchLabels: { app: translator, component: worker-tts-gpu }
+  template:
+    metadata:
+      labels: { app: translator, component: worker-tts-gpu }
+    spec:
+      nodeSelector:
+        {{- toYaml .Values.resources.workerTtsGpu.nodeSelector | nindent 8 }}
+      containers:
+        - name: worker-tts-gpu
+          image: "{{ .Values.image.repository }}/worker:{{ .Values.image.tag }}"
+          envFrom:
+            - configMapRef: { name: translator-config }
+            - secretRef: { name: translator-secret }
+          env:
+            - name: TRANSLATOR_TASK_QUEUE
+              value: "tts-queue"
+          resources:
+            {{- omit .Values.resources.workerTtsGpu "nodeSelector" | toYaml | nindent 12 }}

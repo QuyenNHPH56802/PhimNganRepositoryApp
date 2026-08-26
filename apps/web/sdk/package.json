@@ -1,0 +1,33 @@
+{
+  "name": "@translator/sdk",
+  "version": "1.0.0",
+  "description": "Typed SDK for the Translator orchestration platform.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "dev": "tsup src/index.ts --format esm --dts --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "keywords": ["translator", "localization", "sdk"],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "dependencies": {
+    "ky": "^1.4"
+  },
+  "devDependencies": {
+    "tsup": "^8.0",
+    "typescript": "^5.4",
+    "vitest": "^1.6"
+  }
+}

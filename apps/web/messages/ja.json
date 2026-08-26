@@ -1,0 +1,37 @@
+{
+  "common": {
+    "save": "保存",
+    "cancel": "キャンセル",
+    "loading": "読み込み中…",
+    "forbidden": "403 — 権限がありません",
+    "yes": "はい",
+    "no": "いいえ"
+  },
+  "admin": {
+    "audit": "監査ログ",
+    "voice": "ボイスプロファイル",
+    "dataset": "データセット"
+  },
+  "qualityMode": {
+    "fast": "高速",
+    "balanced": "バランス",
+    "high": "高品質"
+  },
+  "errors": {
+    "language_pair_unsupported": "未対応の言語ペアです",
+    "consent_required": "話者の同意が必要です",
+    "consent_revoked": "同意が取り消されました"
+  },
+  "commands": {
+    "run": "実行",
+    "stop": "停止",
+    "upload": "アップロード",
+    "download": "ダウンロード"
+  },
+  "status": {
+    "queued": "待機中",
+    "processing": "処理中",
+    "ready": "完了",
+    "failed": "失敗"
+  }
+}

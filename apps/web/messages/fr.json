@@ -1,0 +1,37 @@
+{
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "loading": "Chargement…",
+    "forbidden": "403 — interdit",
+    "yes": "Oui",
+    "no": "Non"
+  },
+  "admin": {
+    "audit": "Journal",
+    "voice": "Profils vocaux",
+    "dataset": "Jeu de données"
+  },
+  "qualityMode": {
+    "fast": "RAPIDE",
+    "balanced": "ÉQUILIBRÉ",
+    "high": "ÉLEVÉ"
+  },
+  "errors": {
+    "language_pair_unsupported": "Paire de langues non prise en charge",
+    "consent_required": "Consentement requis",
+    "consent_revoked": "Consentement révoqué"
+  },
+  "commands": {
+    "run": "Lancer",
+    "stop": "Arrêter",
+    "upload": "Téléverser",
+    "download": "Télécharger"
+  },
+  "status": {
+    "queued": "En file",
+    "processing": "En cours",
+    "ready": "Prêt",
+    "failed": "Échec"
+  }
+}

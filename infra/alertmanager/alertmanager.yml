@@ -1,0 +1,4 @@
+route:
+  receiver: pagerduty
+receivers:
+  pagerduty: { service_key: ${PAGERDUTY_KEY:-changeme} }

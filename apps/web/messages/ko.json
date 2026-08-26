@@ -1,0 +1,37 @@
+{
+  "common": {
+    "save": "저장",
+    "cancel": "취소",
+    "loading": "로딩 중…",
+    "forbidden": "403 — 권한 없음",
+    "yes": "예",
+    "no": "아니오"
+  },
+  "admin": {
+    "audit": "감사 로그",
+    "voice": "음성 프로필",
+    "dataset": "데이터셋"
+  },
+  "qualityMode": {
+    "fast": "빠름",
+    "balanced": "균형",
+    "high": "고품질"
+  },
+  "errors": {
+    "language_pair_unsupported": "지원되지 않는 언어 쌍",
+    "consent_required": "화자 동의 필요",
+    "consent_revoked": "동의가 철회됨"
+  },
+  "commands": {
+    "run": "실행",
+    "stop": "중지",
+    "upload": "업로드",
+    "download": "다운로드"
+  },
+  "status": {
+    "queued": "대기 중",
+    "processing": "처리 중",
+    "ready": "완료",
+    "failed": "실패"
+  }
+}

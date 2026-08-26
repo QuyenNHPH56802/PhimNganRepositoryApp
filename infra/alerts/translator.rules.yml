@@ -1,0 +1,100 @@
+groups:
+  - name: translator-api
+    interval: 30s
+    rules:
+      - alert: APILatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(translator_http_request_duration_seconds_bucket[5m])) by (le, endpoint)) > 5
+        for: 5m
+        labels:
+          severity: warning
+          team: translator
+        annotations:
+          summary: "API p95 latency > 5s"
+          description: "Endpoint {{ $labels.endpoint }} p95 = {{ $value }}s"
+
+      - alert: APIErrorRateHigh
+        expr: sum(rate(translator_http_requests_total{status=~"5.."}[5m])) / sum(rate(translator_http_requests_total[5m])) > 0.02
+        for: 5m
+        labels:
+          severity: critical
+          team: translator
+        annotations:
+          summary: "API 5xx ratio > 2%"
+
+  - name: translator-worker
+    interval: 30s
+    rules:
+      - alert: QueueBacklogHigh
+        expr: sum(translator_queue_depth) by (task_queue) > 50
+        for: 10m
+        labels:
+          severity: warning
+          team: translator
+        annotations:
+          summary: "Queue {{ $labels.task_queue }} backlog > 50"
+
+      - alert: GPUOOMImminent
+        expr: translator_gpu_memory_used_bytes / translator_gpu_memory_total_bytes > 0.9
+        for: 2m
+        labels:
+          severity: warning
+          team: translator
+        annotations:
+          summary: "GPU {{ $labels.gpu_index }} memory > 90%"
+
+      - alert: CacheMissRatioHigh
+        expr: sum(rate(translator_cache_miss_total[10m])) / (sum(rate(translator_cache_hit_total[10m])) + sum(rate(translator_cache_miss_total[10m]))) > 0.7
+        for: 15m
+        labels:
+          severity: info
+          team: translator
+        annotations:
+          summary: "ArtifactCache miss ratio > 70%"
+
+      - alert: ActivityFailureHigh
+        expr: sum(rate(translator_activity_calls_total{status="failed"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: translator
+        annotations:
+          summary: "Activity failure rate > 0.1/s"
+
+  - name: translator-ops
+    interval: 1m
+    rules:
+      - alert: ShedderHardTriggered
+        expr: translator_shedder_state == 2
+        for: 1m
+        labels:
+          severity: warning
+          team: translator
+        annotations:
+          summary: "API shedder in HARD state"
+
+      - alert: LicenseExpiringSoon
+        expr: translator_license_expiry_seconds - time() < 86400 * 14
+        for: 1m
+        labels:
+          severity: warning
+          team: translator
+        annotations:
+          summary: "License expiring within 14 days"
+
+      - alert: BackupVerifyFailed
+        expr: translator_backup_verify_status{result="failed"} == 1
+        for: 30m
+        labels:
+          severity: critical
+          team: translator
+        annotations:
+          summary: "Daily backup verification failed"
+
+      - alert: SyntheticProbeFailed
+        expr: translator_probe_success == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: translator
+        annotations:
+          summary: "Synthetic probe has not succeeded"

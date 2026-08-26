@@ -1,0 +1,37 @@
+{
+  "common": {
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "loading": "Carregando…",
+    "forbidden": "403 — proibido",
+    "yes": "Sim",
+    "no": "Não"
+  },
+  "admin": {
+    "audit": "Registro",
+    "voice": "Perfis de voz",
+    "dataset": "Conjunto de dados"
+  },
+  "qualityMode": {
+    "fast": "RÁPIDO",
+    "balanced": "EQUILIBRADO",
+    "high": "ALTO"
+  },
+  "errors": {
+    "language_pair_unsupported": "Par de idiomas não suportado",
+    "consent_required": "Consentimento necessário",
+    "consent_revoked": "Consentimento revogado"
+  },
+  "commands": {
+    "run": "Executar",
+    "stop": "Parar",
+    "upload": "Enviar",
+    "download": "Baixar"
+  },
+  "status": {
+    "queued": "Em fila",
+    "processing": "Processando",
+    "ready": "Pronto",
+    "failed": "Falhou"
+  }
+}

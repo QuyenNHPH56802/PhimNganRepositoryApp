@@ -1,0 +1,12 @@
+groups:
+  - name: translator
+    rules:
+      - alert: ApiErrorRateHigh
+        expr: sum(rate(translator_provider_calls_total{status="failed"}[5m])) > 0.05
+        for: 10m
+      - alert: WorkerQueueBacklog
+        expr: sum(rate(translator_workflow_step_total{status="pending"}[5m])) > 5
+        for: 15m
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 2m

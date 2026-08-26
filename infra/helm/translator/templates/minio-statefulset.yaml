@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: minio
+spec:
+  serviceName: minio
+  replicas: 1
+  selector:
+    matchLabels: { app: translator, component: minio }
+  template:
+    metadata:
+      labels: { app: translator, component: minio }
+    spec:
+      containers:
+        - name: minio
+          image: minio/minio:RELEASE.2024-09-13T20-26-02Z
+          args: ["server", "/data", "--console-address", ":9001"]
+          envFrom:
+            - secretRef: { name: translator-secret }
+          ports:
+            - { containerPort: 9000 }
+            - { containerPort: 9001 }
+          volumeMounts:
+            - { name: miniodata, mountPath: /data }
+  volumeClaimTemplates:
+    - metadata: { name: miniodata }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: { requests: { storage: 1Ti } }

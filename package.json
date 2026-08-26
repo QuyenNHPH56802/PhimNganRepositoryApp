@@ -1,0 +1,22 @@
+{
+  "name": "translator",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Chinese -> Vietnamese video localization platform",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "web:dev": "pnpm --filter @translator/web dev",
+    "api:dev": "pnpm --filter @translator/api dev",
+    "worker:dev": "pnpm --filter @translator/worker dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json,yaml,yml}\""
+  },
+  "devDependencies": {
+    "prettier": "3.3.3",
+    "typescript": "5.5.4"
+  }
+}

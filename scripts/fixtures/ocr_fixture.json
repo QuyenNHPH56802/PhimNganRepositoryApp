@@ -1,0 +1,8 @@
+{
+  "provider": "ocr",
+  "version": 0,
+  "fixtures": [
+    {"id": "ocr_001", "image_path": "datasets/golden/ocr/frames/burn_001.png", "detections": [{"text": "字幕", "bbox": {"polygon": [12, 12, 80, 12, 80, 40, 12, 40]}, "frame_ts_ms": 0, "confidence": 0.95}]},
+    {"id": "ocr_002", "image_path": "datasets/golden/ocr/frames/burn_002.png", "detections": [{"text": "测试", "bbox": {"polygon": [0, 0, 60, 0, 60, 30, 0, 30]}, "frame_ts_ms": 0, "confidence": 0.88}]}
+  ]
+}

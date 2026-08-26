@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-cpu
+spec:
+  replicas: {{ .Values.replicas.workerCpu }}
+  selector:
+    matchLabels: { app: translator, component: worker-cpu }
+  template:
+    metadata:
+      labels: { app: translator, component: worker-cpu }
+    spec:
+      containers:
+        - name: worker-cpu
+          image: "{{ .Values.image.repository }}/worker:{{ .Values.image.tag }}"
+          envFrom:
+            - configMapRef: { name: translator-config }
+            - secretRef: { name: translator-secret }
+          env:
+            - name: TRANSLATOR_TASK_QUEUE
+              value: "cpu-queue"
+          resources:
+            requests: { cpu: "500m", memory: "1Gi" }
+            limits:   { cpu: "4",   memory: "4Gi" }
