@@ -77,6 +77,8 @@ from translator_shared.provider_responses_extra import (
     CleanupReport,
     TranslationSegment,
 )
+from translator_shared.providers import ArtifactSignature
+from translator_worker.activities import _empty_signature
 from translator_worker.deps import build_storage, make_worker_session_factory
 
 
@@ -166,7 +168,14 @@ async def translate_segments(project_id: str, asset_id: str | None = None) -> di
         tx_repo = TranscriptRepository(session)
         latest_tx = tx_repo.latest_for_project(UUID(project_id))
         if latest_tx is None:
-            raise RuntimeError("no transcript found for project")
+            _record_step(session, project_id, "translate_segments", status="skipped", note="no transcript")
+            activity.logger.info("translate_segments skipped: no transcript for project_id=%s", project_id)
+            return {
+                "ok": True,
+                "skipped": True,
+                "reason": "no transcript found for project",
+                "signature": _empty_signature("translate_segments").model_dump(),
+            }
         from translator_api.models import TranscriptSegment
 
         source_segs = session.query(TranscriptSegment).filter_by(transcript_id=latest_tx.id).order_by(TranscriptSegment.start_ms).all()
@@ -332,8 +341,18 @@ async def tts_synthesize(project_id: str, asset_id: str | None = None) -> dict:
                 if text:
                     tts_texts.append(text)
 
+        if not tts_texts:
+            _record_step(session, project_id, "tts_synthesize", status="skipped", note="no tts text")
+            activity.logger.info("tts_synthesize skipped: no tts_text/display_text for project_id=%s", project_id)
+            return {
+                "ok": True,
+                "skipped": True,
+                "reason": "no translated text available",
+                "signature": _empty_signature("tts_synthesize").model_dump(),
+            }
+
         voice_profile = session.query(VoiceProfile).filter_by(project_id=UUID(project_id)).first()
-        text = "\n".join(tts_texts) if tts_texts else ""
+        text = "\n".join(tts_texts)
         payload = TtsInput(
             text=text,
             voice_profile_id=str(voice_profile.id) if voice_profile else None,
