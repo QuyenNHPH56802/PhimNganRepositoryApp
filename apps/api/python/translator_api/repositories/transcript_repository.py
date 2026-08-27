@@ -32,3 +32,16 @@ class TranscriptRepository:
             self.db.add(word)
         self.db.flush()
         return transcript
+
+    def latest_for_project(self, project_id: UUID) -> Transcript | None:
+        """Return the most recent transcript for a project (via the asset link)."""
+        from translator_api.models import Asset
+
+        stmt = (
+            select(Transcript)
+            .join(Asset, Transcript.asset_id == Asset.id)
+            .where(Asset.project_id == project_id)
+            .order_by(Transcript.created_at.desc())
+            .limit(1)
+        )
+        return self.db.execute(stmt).scalar_one_or_none()

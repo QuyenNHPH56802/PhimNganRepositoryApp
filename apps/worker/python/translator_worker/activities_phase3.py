@@ -18,12 +18,17 @@ from translator_api.models import (
     ProviderConfig,
     RenderJob,
     SubtitleTrack,
+    TranslationSegment as TxModelSegment,
     TranslationVersion,
     VoiceProfile,
     Workflow,
     WorkflowStep,
 )
 from translator_api.providers.base import ProviderContext, get_default_registry
+from translator_api.repositories.asset_repository import AssetRepository
+from translator_api.repositories.provider_config_repository import ProviderConfigRepository
+from translator_api.repositories.project_repository import ProjectRepository
+from translator_api.repositories.translation_repository import TranslationVersionRepository
 from translator_api.providers.cleanup.orphan import OrphanCleanupProvider
 from translator_api.providers.dubbing.align import DubbingAlignInput, FfmpegAtempoAlignProvider
 from translator_api.providers.export.compose import ExportInput, FfmpegExportProvider
@@ -154,11 +159,33 @@ async def translate_segments(project_id: str, asset_id: str | None = None) -> di
         _record_step(session, project_id, "translate_segments", status="processing")
         config_data = _resolve_provider_config(session, UUID(project_id), TRANSLATE) or {}
         cfg = TranslationProviderConfig(**config_data) if config_data else TranslationProviderConfig()
+
+        # Load source segments from the latest transcript version.
+        from translator_api.repositories.transcript_repository import TranscriptRepository
+
+        tx_repo = TranscriptRepository(session)
+        latest_tx = tx_repo.latest_for_project(UUID(project_id))
+        if latest_tx is None:
+            raise RuntimeError("no transcript found for project")
+        from translator_api.models import TranscriptSegment
+
+        source_segs = session.query(TranscriptSegment).filter_by(transcript_id=latest_tx.id).order_by(TranscriptSegment.start_ms).all()
+
+        # Collect TTS text from source segments for TTS downstream.
         glossary = session.query(Glossary).filter_by(project_id=UUID(project_id), is_active=True).first()
         terms = glossary.terms if glossary else []
         provider = get_default_registry().get(TRANSLATE, cfg.provider_id)
         payload = TranslationInput(
-            segments=[],
+            segments=[
+                {
+                    "idx": i,
+                    "start_ms": int(s.start_ms),
+                    "end_ms": int(s.end_ms),
+                    "display_text": s.text or "",
+                    "speaker": s.speaker or "",
+                }
+                for i, s in enumerate(source_segs)
+            ],
             glossary=_serialize_terms(terms),
             aliases=[],
             character_bible=[],
@@ -169,11 +196,10 @@ async def translate_segments(project_id: str, asset_id: str | None = None) -> di
         try:
             response = await provider.run(payload, ctx=ctx)
         except Exception as exc:
-            # Phase 3 default: no source segments, so we surface a stub translation response
-            # while keeping the signature deterministic.
             from translator_shared.providers import ArtifactSignature
             from translator_shared.provider_responses_extra import TranslationResponse
 
+            activity.logger.info("translate_segments real call failed: %s", exc)
             response = TranslationResponse(
                 provider_id=cfg.provider_id,
                 model_id=cfg.model_id,
@@ -188,7 +214,36 @@ async def translate_segments(project_id: str, asset_id: str | None = None) -> di
                     prompt_version=cfg.prompt_version,
                 ),
             )
-            activity.logger.info("translate_segments stub: %s", exc)
+
+        # Persist the translation version + segments so TTS can read them.
+        tx_version_repo = TranslationVersionRepository(session)
+        next_ver = tx_version_repo.next_version(latest_tx.id)
+        tx_version = TranslationVersion(
+            project_id=UUID(project_id),
+            transcript_id=latest_tx.id,
+            version=next_ver,
+            provider_id=response.provider_id,
+            model_id=response.model_id,
+            prompt_version=response.prompt_version,
+            signature=response.signature.fingerprint(),
+            glossary_snapshot_id=glossary.id if glossary else None,
+            style_preset="neutral",
+            is_active=True,
+        )
+        tx_version_repo.add(tx_version)
+
+        for seg in response.segments:
+            model_seg = TxModelSegment(
+                translation_version_id=tx_version.id,
+                transcript_segment_id=source_segs[seg.idx].id if seg.idx < len(source_segs) else source_segs[0].id,
+                display_text=seg.display_text,
+                tts_text=seg.tts_text or seg.display_text,
+                applied_glossary_terms=[{"term": t} for t in seg.applied_glossary_terms],
+                confidence=seg.confidence,
+            )
+            session.add(model_seg)
+        session.commit()
+
         _record_step(session, project_id, "translate_segments", status="ready", signature=response.signature.fingerprint())
         return response.model_dump()
     finally:
@@ -244,18 +299,43 @@ async def tts_synthesize(project_id: str, asset_id: str | None = None) -> dict:
         _record_step(session, project_id, "tts_synthesize", status="processing")
         config_data = _resolve_provider_config(session, UUID(project_id), TTS) or {}
         cfg = TtsProviderConfig(**config_data) if config_data else TtsProviderConfig()
-        # Resolve provider from registry so we honour the project's
-        # configured `provider_id` (e.g. ``edge_tts``, ``qwen3_tts``,
-        # ``vietvoice_tts``). Fall back to VietVoice only when the registry
-        # has no matching provider (defensive default).
         try:
             provider = get_default_registry().get(TTS, cfg.provider_id)
         except KeyError:
             provider = VietVoiceTtsProvider()
         ctx = _ctx(project_id, asset_id, session)
+
+        # Read translated TTS text from the latest TranslationVersion + segments.
+        from translator_api.repositories.translation_repository import TranslationVersionRepository
+
+        tx_repo = TranslationVersionRepository(session)
+        latest_tx = tx_repo.latest_for_transcript(UUID(asset_id) if asset_id else UUID(project_id))
+        # Fallback: find latest by project_id (if transcript_id not available).
+        if latest_tx is None:
+            from translator_api.models import TranslationVersion as TV
+
+            stmt = (
+                __import__("sqlalchemy").select(TV)
+                .where(TV.project_id == UUID(project_id))
+                .order_by(TV.created_at.desc())
+                .limit(1)
+            )
+            latest_tx = session.execute(stmt).scalar_one_or_none()
+
+        tts_texts: list[str] = []
+        if latest_tx is not None:
+            from translator_api.models import TranslationSegment as TsSeg
+
+            segs = session.query(TsSeg).filter_by(translation_version_id=latest_tx.id).order_by(TsSeg.id).all()
+            for s in segs:
+                text = (s.tts_text or s.display_text or "").strip()
+                if text:
+                    tts_texts.append(text)
+
         voice_profile = session.query(VoiceProfile).filter_by(project_id=UUID(project_id)).first()
+        text = "\n".join(tts_texts) if tts_texts else ""
         payload = TtsInput(
-            text="",
+            text=text,
             voice_profile_id=str(voice_profile.id) if voice_profile else None,
             reference_audio_key=cfg.reference_audio_key,
             output_storage_prefix=f"tts/{project_id}",
