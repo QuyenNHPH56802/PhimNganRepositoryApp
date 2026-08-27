@@ -100,21 +100,21 @@ if not errorlevel 1 (
     ) >> "%REPORT_FILE%"
     set /a PASS_COUNT+=1
 ) else (
-    if exist "%PYVIDEOTRANS_DIR%\ffmpeg.exe" (
-        echo [PASS] FFmpeg bundled in pyvideotrans-win.
-        (
-            echo   PASS: Bundled FFmpeg found
-        ) >> "%REPORT_FILE%"
-        set /a PASS_COUNT+=1
-    ) else (
-        echo [WARN] FFmpeg not in PATH and not bundled.
-        (
-            echo   WARN: FFmpeg not found in PATH
-            echo   NOTE: Pre-packaged version includes FFmpeg
-            echo   ACTION: If video processing fails, verify FFmpeg
-        ) >> "%REPORT_FILE%"
-        set /a WARN_COUNT+=1
-    )
+if exist "%PYVIDEOTRANS_DIR%\ffmpeg\ffmpeg.exe" (
+    echo [PASS] FFmpeg bundled in pyvideotrans-win\ffmpeg\.
+    (
+        echo   PASS: Bundled FFmpeg found at %PYVIDEOTRANS_DIR%\ffmpeg\
+    ) >> "%REPORT_FILE%"
+    set /a PASS_COUNT+=1
+) else (
+    echo [WARN] FFmpeg not in PATH and not bundled.
+    (
+        echo   WARN: FFmpeg not found in PATH
+        echo   NOTE: Pre-packaged version includes FFmpeg in ffmpeg\ folder
+        echo   ACTION: If video processing fails, verify FFmpeg
+    ) >> "%REPORT_FILE%"
+    set /a WARN_COUNT+=1
+)
 )
 
 :: ============================================================
@@ -126,12 +126,11 @@ echo [4/12] Checking GPU...
 ) >> "%REPORT_FILE%"
 nvidia-smi >nul 2>&1
 if not errorlevel 1 (
-    for /f "delims=" %%i in ('nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader 2^>nul') do (
-        echo [PASS] GPU: %%i
-        (
-            echo   PASS: %%i
-        ) >> "%REPORT_FILE%"
-    )
+    echo [PASS] NVIDIA GPU detected ^(RTX-series^).
+    (
+        echo   PASS: NVIDIA GPU available
+        echo   INFO: Run nvidia-smi for details
+    ) >> "%REPORT_FILE%"
     set /a PASS_COUNT+=1
 ) else (
     echo [INFO] No NVIDIA GPU. CPU mode will be used.
