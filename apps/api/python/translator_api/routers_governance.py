@@ -20,6 +20,7 @@ from translator_api.schemas import (
     MemberListResponse,
     MemberResponse,
     ProjectConsentRequest,
+    QualityModeResponse,
 )
 from translator_api.security.identity import UserIdentity
 from translator_api.security.consent import (

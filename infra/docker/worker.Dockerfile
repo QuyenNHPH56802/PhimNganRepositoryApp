@@ -12,11 +12,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml README.md ./
-COPY apps/shared/python ./apps/shared/python
-COPY apps/api/python ./apps/api/python
-COPY apps/worker/python ./apps/worker/python
+COPY packages/shared/python/translator_shared ./packages/shared/python/translator_shared
+COPY apps/api/python/translator_api ./apps/api/python/translator_api
+COPY apps/worker/python/translator_worker ./apps/worker/python/translator_worker
 
 RUN pip install --upgrade pip && \
-    pip install ".[worker,shared]"
+    pip install ".[worker,shared]" && \
+    pip install "psycopg[binary]>=3.2.1" "boto3>=1.34" "ffmpeg-python>=0.2"
 
-CMD ["python", "-m", "translator_worker"]
+CMD ["python", "-m", "translator_worker.main"]

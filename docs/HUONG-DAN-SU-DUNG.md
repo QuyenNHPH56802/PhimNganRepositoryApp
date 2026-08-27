@@ -203,7 +203,12 @@ Sau khi khởi động xong, mở trình duyệt web (Chrome, Edge, Firefox):
 1. Nhấn nút **"Dịch"** hoặc **"Translate"** bên cạnh video
 2. Chọn **ngôn ngữ nguồn** (video gốc)
 3. Chọn **ngôn ngữ đích** (video cần dịch sang)
-4. Nhấn **"Bắt đầu"**
+4. Chọn **giọng lồng tiếng**:
+   - **Edge TTS (miễn phí)** — khuyến nghị cho người mới, không cần API key, không cần GPU
+   - **Qwen3 TTS (chất lượng cao)** — cần cài thêm model
+   - **VietVoice / VieNeu / CosyVoice** — cần GPU
+   - **Azure / Google / ElevenLabs** — cần API key thương mại
+5. Nhấn **"Bắt đầu"**
 
 ### 6.4: Xem kết quả
 

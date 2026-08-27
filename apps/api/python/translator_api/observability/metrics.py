@@ -53,17 +53,6 @@ try:
         return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-    @metrics_router.middleware("http")
-    async def _observe_requests(request: Request, call_next):
-        started = time.perf_counter()
-        response = await call_next(request)
-        elapsed = time.perf_counter() - started
-        endpoint = request.url.path
-        HTTP_DURATION.labels(method=request.method, endpoint=endpoint).observe(elapsed)
-        HTTP_REQUESTS.labels(method=request.method, endpoint=endpoint, status=str(response.status_code)).inc()
-        return response
-
-
 except ImportError:  # pragma: no cover - prometheus_client optional
     PROVIDER_CALLS = None  # type: ignore[assignment]
     PROVIDER_DURATION = None  # type: ignore[assignment]
@@ -75,6 +64,20 @@ except ImportError:  # pragma: no cover - prometheus_client optional
     @metrics_router.get("/metrics", include_in_schema=False)
     async def metrics() -> Response:
         return Response(content=b"# prometheus_client not installed\n", media_type="text/plain")
+
+
+async def observe_requests_middleware(request: Request, call_next):
+    if HTTP_DURATION is None or HTTP_REQUESTS is None:
+        return await call_next(request)
+    started = time.perf_counter()
+    response = await call_next(request)
+    elapsed = time.perf_counter() - started
+    endpoint = request.url.path
+    HTTP_DURATION.labels(method=request.method, endpoint=endpoint).observe(elapsed)
+    HTTP_REQUESTS.labels(
+        method=request.method, endpoint=endpoint, status=str(response.status_code)
+    ).inc()
+    return response
 
 
 __all__ = [

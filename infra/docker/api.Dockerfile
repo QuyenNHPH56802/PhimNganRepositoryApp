@@ -12,11 +12,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml README.md ./
-COPY apps/shared/python ./apps/shared/python
-COPY apps/api/python ./apps/api/python
+COPY packages/shared/python/translator_shared ./packages/shared/python/translator_shared
+COPY apps/api/python/translator_api ./apps/api/python/translator_api
+COPY apps/worker/python/translator_worker ./apps/worker/python/translator_worker
 
 RUN pip install --upgrade pip build && \
-    pip install ".[api,shared]"
+    pip install ".[api,shared]" && \
+    pip install "psycopg[binary]>=3.2.1" "alembic>=1.13" "boto3>=1.34"
 
 EXPOSE 8000
 

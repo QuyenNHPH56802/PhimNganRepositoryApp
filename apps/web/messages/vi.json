@@ -33,5 +33,17 @@
     "processing": "Đang xử lý",
     "ready": "Sẵn sàng",
     "failed": "Lỗi"
+  },
+  "tts": {
+    "providers": {
+      "edge": {
+        "label": "Edge TTS (miễn phí)",
+        "description": "Giọng Microsoft Edge, miễn phí, không cần API key"
+      },
+      "qwen3": {
+        "label": "Qwen3 TTS (chất lượng cao)",
+        "description": "Alibaba Qwen3, đa ngôn ngữ, cần GPU cho local"
+      }
+    }
   }
 }

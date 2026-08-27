@@ -49,17 +49,14 @@ Homepage = "https://translator.local"
 Documentation = "https://translator.local/docs"
 Repository = "https://example.com/translator"
 
-[tool.setuptools]
-packages = [
-    "translator_shared",
-    "translator_api",
-    "translator_worker",
-]
-
 [tool.setuptools.package-dir]
 translator_shared = "packages/shared/python/translator_shared"
 translator_api = "apps/api/python/translator_api"
 translator_worker = "apps/worker/python/translator_worker"
+
+[tool.setuptools.packages.find]
+where = ["packages/shared/python", "apps/api/python", "apps/worker/python"]
+include = ["translator_*"]
 
 [tool.ruff]
 line-length = 100

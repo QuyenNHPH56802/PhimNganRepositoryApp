@@ -16,6 +16,7 @@ from datetime import timedelta
 from temporalio import workflow
 
 from translator_shared.workflows import QualityMode
+from translator_worker.constants import PROJECT_QUEUE
 from translator_worker.retry import (
     DEFAULT_RETRY,
     LONG_RETRY,
@@ -45,7 +46,7 @@ class ProjectWorkflow:
     @workflow.run
     async def run(self, project_id: str, quality_mode: str | None) -> str:
         mode = QualityMode(quality_mode) if quality_mode else QualityMode.BALANCED
-        await _start("validate_inputs", project_id, CPU_QUEUE, SHORT_RETRY)
+        await _start("validate_inputs", project_id, CPU_QUEUE, SHORT_RETRY, None)
         await _start("detect_subtitle_stream", project_id, CPU_QUEUE, SHORT_RETRY)
         await _start("analyze_media", project_id, CPU_QUEUE, SHORT_RETRY)
         await _start("chunk_plan", project_id, CPU_QUEUE, SHORT_RETRY)
@@ -55,14 +56,14 @@ class ProjectWorkflow:
                 SubtitleWorkflow.run,
                 args=[project_id],
                 id=f"subtitle-{project_id}",
-                task_queue=CPU_QUEUE,
+                task_queue=PROJECT_QUEUE,
             )
         else:
             await workflow.execute_child_workflow(
                 DubbingWorkflow.run,
                 args=[project_id, mode.value],
                 id=f"dubbing-{project_id}",
-                task_queue=CPU_QUEUE,
+                task_queue=PROJECT_QUEUE,
             )
 
         await _start("render_build", project_id, CPU_QUEUE, DEFAULT_RETRY)

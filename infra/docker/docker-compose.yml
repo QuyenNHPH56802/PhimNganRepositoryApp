@@ -3,29 +3,51 @@ version: "3.9"
 services:
   api:
     build:
-      context: ..
+      context: ../..
       dockerfile: infra/docker/api.Dockerfile
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/translator
-      TEMPORAL_HOST: temporal
-      STORAGE_BACKEND: local
-    depends_on: [db, temporal]
+      TRANSLATOR_DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/translator
+      TRANSLATOR_TEMPORAL_ADDRESS: temporal:7233
+      TRANSLATOR_STORAGE_PROVIDER_ID: local
+      TTS_SERVICE_URL: http://tts-service:3099
+    depends_on: [db, temporal, tts-service]
 
   worker:
     build:
-      context: ..
+      context: ../..
       dockerfile: infra/docker/worker.Dockerfile
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/translator
-      TEMPORAL_HOST: temporal
-    depends_on: [db, temporal]
+      TRANSLATOR_DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/translator
+      TRANSLATOR_TEMPORAL_ADDRESS: temporal:7233
+      TTS_SERVICE_URL: http://tts-service:3099
+    depends_on: [db, temporal, tts-service]
+
+  tts-service:
+    build:
+      context: ../../apps/tts-service
+      dockerfile: Dockerfile
+    ports:
+      - "3099:3099"
+    environment:
+      TTS_ENGINE: edge
+      TTS_DEFAULT_VOICE: vi-VN-HoaiMyNeural
+      TTS_MAX_CHUNK: "500"
+      TTS_MAX_RETRIES: "3"
+      TTS_CACHE_SIZE: "100"
+      TTS_CONCURRENCY: "2"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3099/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   web:
     build:
-      context: ..
+      context: ../..
       dockerfile: infra/docker/web.Dockerfile
+    profiles: ["frontend"]
     ports:
       - "3000:3000"
     environment:
@@ -40,6 +62,16 @@ services:
       - "5432:5432"
 
   temporal:
-    image: temporalio/auto-setup:1.4
+    image: temporalio/auto-setup:1.23.1.1
     environment:
-      DB: postgresql://postgres:postgres@db:5432/temporal
+      DB: postgres12
+      DB_PORT: "5432"
+      POSTGRES_SEEDS: db
+      POSTGRES_USER: postgres
+      POSTGRES_PWD: postgres
+      DBNAME: temporal
+      VISIBILITY_DBNAME: temporal_visibility
+      SKIP_DB_CREATE: "false"
+    depends_on:
+      db:
+        condition: service_started

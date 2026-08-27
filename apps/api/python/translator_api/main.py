@@ -54,9 +54,10 @@ def create_app() -> FastAPI:
 
         return StreamingResponse(iterator(), media_type="text/event-stream")
 
-    from translator_api.observability.metrics import metrics_router
+    from translator_api.observability.metrics import metrics_router, observe_requests_middleware
 
     app.include_router(metrics_router)
+    app.middleware("http")(observe_requests_middleware)
 
     return app
 

@@ -3,13 +3,22 @@ FROM node:20-alpine AS base
 
 WORKDIR /app
 
-COPY apps/web/package.json apps/web/pnpm-lock.yaml* ./
-RUN corepack enable && pnpm install --frozen-lockfile || npm install
+# Install web app deps in isolation (no monorepo hoisting needed for Next)
+WORKDIR /web
+COPY apps/web/package.json ./
+RUN npm install --no-audit --no-fund
 
+# Copy the rest of the web app + tsconfig.base.json it extends from
 COPY apps/web ./
+COPY tsconfig.base.json ../../tsconfig.base.json
 
-RUN pnpm build || npm run build
+RUN npm run build
+
+# Runtime image
+FROM node:20-alpine AS runtime
+WORKDIR /app
+COPY --from=base /web ./
 
 EXPOSE 3000
 
-CMD ["pnpm", "start"]
+CMD ["npm", "start"]

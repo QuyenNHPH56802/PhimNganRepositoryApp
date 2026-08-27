@@ -30,7 +30,7 @@ from translator_worker.workflows import (
 
 logger = logging.getLogger(__name__)
 
-PROJECT_QUEUE = "project-queue"
+from translator_worker.constants import PROJECT_QUEUE
 
 
 TRIVIAL_ACTIVITIES = [

@@ -91,10 +91,66 @@ per-project. Production deploys must:
 
 Before tagging `vX.Y.Z`:
 
-- [ ] `make test` is green (58 tests).
+- [ ] `make test` is green (113 tests).
 - [ ] `make typecheck` passes.
 - [ ] `python scripts/check_deprecations.py` passes.
 - [ ] `python scripts/release_dryrun.py` passes.
 - [ ] Helm chart `infra/helm/translator` renders without errors.
 - [ ] On-call rotation has reviewed `releases/vX.Y.Z.md`.
 - [ ] Smoke test from a fresh VM in staging region.
+
+## 8. TTS providers
+
+| Provider | Engine | Env vars | Notes |
+|----------|--------|----------|-------|
+| Edge-TTS | `edge_tts` | none | Free Microsoft Edge neural voices; no API key. Vietnamese voices `vi-VN-HoaiMyNeural` (female) and `vi-VN-NamMinhNeural` (male). Recommended default when no GPU is available. |
+| Qwen3-TTS | `qwen3_tts` | none | Alibaba multilingual model; deployed locally. Requires `qwen-tts` SDK and a downloaded checkpoint. High quality for `zh/en/vi/ja/ko`. |
+| VietVoice | `vietvoice_tts` | none | Vietnamese-only local model; GPU recommended. |
+| VieNeu | `vieneu_v3_turbo` | none | Vietnamese voice-clone capable; GPU recommended. |
+| CosyVoice 3 | `cosyvoice_3` | none | Multilingual voice-clone capable; GPU required. |
+| Azure | `cloud_azure` | `AZURE_TTS_KEY` | Commercial neural TTS. |
+| Google | `cloud_google` | `GOOGLE_TTS_KEY` | Commercial neural TTS. |
+| ElevenLabs | `cloud_elevenlabs` | `ELEVENLABS_API_KEY` | Commercial neural TTS with voice cloning. |
+| MeloTTS (VI) | `melotts_vi` | none | Lightweight Vietnamese local model. |
+
+### Edge-TTS quick start
+
+Edge-TTS is the cheapest, lowest-friction option. The provider is bundled
+in `translator_api.providers.tts.edge` and registered automatically. To
+switch the default TTS for a project, set `provider_id=edge_tts` in the
+project's `ProviderConfig`.
+
+```bash
+pip install edge-tts
+edge-tts --voice vi-VN-HoaiMyNeural --text "Xin chào" --write-media hello.mp3
+```
+
+The provider supports chunked synthesis (max 500 chars per chunk, sentence-
+aligned) and an in-process LRU cache (100 entries). For shared caching
+across replicas, deploy the `tts-service` microservice:
+
+```bash
+cd apps/tts-service
+docker build -t translator-tts-service .
+docker run --rm -p 3099:3099 -e TTS_ENGINE=edge translator-tts-service
+curl http://localhost:3099/voices?lang=vi
+curl -X POST http://localhost:3099/synthesize \
+  -H 'Content-Type: application/json' \
+  -d '{"text": "Xin chào các bạn", "voice": "vi-VN-HoaiMyNeural"}'
+```
+
+### Qwen3-TTS quick start
+
+```bash
+pip install qwen-tts
+# First run downloads the checkpoint into ~/.cache/qwen-tts
+python -c "from qwen_tts import Qwen3TTS; Qwen3TTS(model_id='qwen3-tts')"
+```
+
+### SpeedRate cue alignment
+
+The dubbing align provider (`translator_api.providers.dubbing.align`)
+exposes a `SpeedRate` class that mirrors pyVideoTrans' `SpeedRate`:
+`speedup()` (atempo), `remove_silence()`, and `force_align()` to pad
+synthesized audio to the cue length. Use `align_to_cue(audio_path,
+target_ms)` from worker activities for one-shot alignment.

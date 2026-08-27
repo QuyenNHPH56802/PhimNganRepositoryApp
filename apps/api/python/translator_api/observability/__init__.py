@@ -6,6 +6,7 @@ from translator_api.observability.metrics import (
     PROVIDER_CALLS,
     PROVIDER_DURATION,
     observe_provider_call,
+    observe_requests_middleware,
     set_shedder_state,
     metrics_router,
 )
@@ -27,6 +28,7 @@ __all__ = [
     "metrics_router",
     "mint_traceparent",
     "observe_provider_call",
+    "observe_requests_middleware",
     "parse_traceparent",
     "set_shedder_state",
     "setup_telemetry",
