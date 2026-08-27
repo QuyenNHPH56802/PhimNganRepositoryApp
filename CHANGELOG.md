@@ -5,6 +5,42 @@ All notable changes to the Translator platform are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-08-27
+
+### Added
+- **`translate_segments` activity** (`apps/worker/python/translator_worker/activities_phase3.py`):
+  Previously called the translation provider with an empty `segments=[]`
+  payload and discarded the response. Now loads source segments from the
+  latest `TranscriptVersion` via the new
+  `TranscriptRepository.latest_for_project()` method, passes them to the
+  translation provider, and persists the result as `TranslationVersion` +
+  `TranslationSegment` DB records so downstream TTS can read the translated
+  text.
+- **`tts_synthesize` activity** (`apps/worker/python/translator_worker/activities_phase3.py`):
+  Previously always called the TTS provider with `text=""` and returned a
+  stub. Now reads `tts_text` (or `display_text`) from the persisted
+  `TranslationSegment` records, joins them into a single string, and passes
+  it to the TTS provider — enabling real audio synthesis end-to-end.
+- **`TranscriptRepository.latest_for_project()`**
+  (`apps/api/python/translator_api/repositories/transcript_repository.py`):
+  New method that finds the most recent `Transcript` for a given project by
+  joining `transcript → asset → project`. Required by the fixed
+  `translate_segments` logic.
+
+### Changed
+- **README.md** (`README.md`):
+  Rewritten with complete feature overview, architecture diagram with data
+  flow, full TTS provider table (10 providers, free vs paid), project
+  structure updated to reflect all directories, configuration section
+  expanded with all env vars, version history table added, and
+  "What's New in v1.3.0" summary section at the top.
+- **`README.md` clone URL**: Fixed placeholder
+  `https://example.com/translator.git` → real repo URL
+  `https://github.com/QuyenNHPH56802/PhimNganRepositoryApp.git` and
+  `cd translator` → `cd PhimNganRepositoryApp`.
+- **Bumped to 1.3.0** in `VERSION`, root `pyproject.toml`, `README.md`,
+  and `docs/HUONG-DAN-SU-DUNG.md`.
+
 ## [1.1.0] - 2026-08-27
 
 ### Added
