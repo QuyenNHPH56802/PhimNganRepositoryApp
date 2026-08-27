@@ -33,9 +33,12 @@ class SessionSettings:
 
 
 def load_session_settings() -> SessionSettings:
-    secret = os.environ.get("TRANSLATOR_SESSION_SECRET", "")
+    secret = os.environ.get("TRANSLATOR_SESSION_SECRET")
     if not secret:
-        secret = "phase4-insecure-dev-secret-do-not-use-in-prod"
+        raise RuntimeError(
+            "TRANSLATOR_SESSION_SECRET is not set. "
+            "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
     ttl = int(os.environ.get("TRANSLATOR_SESSION_TTL", str(DEFAULT_TTL)))
     return SessionSettings(secret=secret, ttl_seconds=ttl)
 
