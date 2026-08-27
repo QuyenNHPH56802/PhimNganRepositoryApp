@@ -34,3 +34,16 @@ Thumbs.db
 *.tfstate
 *.tfstate.backup
 .terraform/
+
+# pyVideoTrans pre-packaged (download separately, do not commit)
+pyvideotrans-win/
+win-pyvideotrans-*.7z
+doctor_report.txt
+setup_done.txt
+pyvideotrans-backup/
+output/
+logs/
+
+# Local test artifacts
+*.tmp
+*.bak
