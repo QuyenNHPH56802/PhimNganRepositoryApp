@@ -273,7 +273,13 @@ Phần này hướng dẫn chi tiết cách chọn và cấu hình **giọng l�
 **Bước 2 — Thêm vào .env:**
 ```bash
 DASHSCOPE_API_KEY=sk-your-key-here
+# Tùy chọn: bật streaming mode (giảm time-to-first-byte ~0.5s)
+DASHSCOPE_STREAMING=1
 ```
+
+**So sánh 2 mode:**
+- **Non-streaming** (mặc định): POST → nhận URL audio → download. Tổng latency thấp nhất, tiết kiệm CPU.
+- **Streaming** (DASHSCOPE_STREAMING=1): SSE trả về Base64 chunks liên tục. Phù hợp app real-time, có TTFB thấp hơn (~0.5s) nhưng tổng latency +10–15%.
 
 **Bước 3 — Chọn provider trong giao diện:**
 1. Mở http://localhost:3000/settings

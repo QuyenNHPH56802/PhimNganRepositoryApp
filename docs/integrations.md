@@ -149,12 +149,23 @@ export DASHSCOPE_API_KEY=sk-...
 # 2. Set as default TTS provider in the web UI: Settings → TTS → DashScope
 #    or via API: PUT /projects/<id>/provider-configs with provider_id=dashscope_tts
 
-# 3. Test with curl (non-streaming)
+# 3. (Optional) Enable SSE streaming for faster time-to-first-byte
+export DASHSCOPE_STREAMING=1
+# Trade-off: streaming has ~10–15% higher total latency but lower TTFB.
+
+# 4. Test with curl (non-streaming)
 curl -X POST https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation \
   -H "Authorization: Bearer $DASHSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"model": "qwen3-tts-flash", "input": {"text": "Hello world", "voice": "Cherry", "language_type": "English"}}'
 ```
+
+**Non-streaming vs. streaming:**
+
+| Mode | Latency to first byte | Total latency | CPU cost | Recommended |
+|------|----------------------|---------------|----------|-------------|
+| Non-streaming (default) | ~2–5s | Lowest | Low | Long-form videos (most efficient) |
+| SSE streaming (`DASHSCOPE_STREAMING=1`) | ~0.5s | ~10–15% higher | Medium (Base64 decode) | Real-time preview, interactive apps |
 
 No local model download required — synthesis runs on Alibaba Cloud. Supported voices
 include `Cherry`, `Ethan`, `Serena`, `Chelsie` (and more). Switch models via

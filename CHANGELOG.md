@@ -63,12 +63,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `qwen3-tts-flash` (default, fast) and `qwen3-tts-instruct-flash`
   (instruction-controlled). Auto-detects language from text Unicode
   ranges and chunks inputs to stay within the 512-token limit.
+- **DashScope SSE streaming mode** (`apps/api/python/translator_api/providers/tts/cloud_qwen3.py`):
+  Opt-in via `DASHSCOPE_STREAMING=1`. Streams Base64-encoded audio chunks
+  via Server-Sent Events for ~0.5s time-to-first-byte vs ~2–5s for the
+  default URL-based path. Trade-off: ~10–15% higher total latency
+  because of Base64 decode overhead, but better suited for interactive
+  previews and real-time feedback.
 - **DashScope provider tests** (`apps/api/python/tests/test_providers_tts_dashscope.py`):
   Unit tests covering language detection (Chinese/Japanese/Korean/Russian/
   English/Auto), text chunker, fingerprint, missing API key, HTTP error
-  responses, and empty text.
-- **DashScope env vars** (`.env.example`): `DASHSCOPE_API_KEY` and
-  `DASHSCOPE_BASE_URL` (defaults to international endpoint).
+  responses, empty text, SSE chunk parsing, and streaming mode dispatch.
+- **DashScope env vars** (`.env.example`): `DASHSCOPE_API_KEY`,
+  `DASHSCOPE_BASE_URL`, and `DASHSCOPE_STREAMING`.
 
 ### Changed
 - **Web UI TTS dropdown** (`apps/web/app/settings/page.tsx`):

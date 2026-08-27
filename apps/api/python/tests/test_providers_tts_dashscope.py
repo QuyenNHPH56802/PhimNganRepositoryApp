@@ -175,6 +175,90 @@ class TestHttpFlow:
                 await provider.run(inp, ctx=ctx)
 
 
+class TestStreamingMode:
+    @pytest.mark.asyncio
+    async def test_streaming_chunks_decoded(self) -> None:
+        """Streaming mode should concatenate Base64 SSE chunks into WAV bytes."""
+        import base64
+
+        chunk1 = b"RIFF\x00\x00\x00\x00WAVE"
+        chunk2 = b"more-audio-bytes"
+        b64_1 = base64.b64encode(chunk1).decode()
+        b64_2 = base64.b64encode(chunk2).decode()
+
+        sse_body = (
+            f"data: {{\"output\": {{\"audio\": {{\"data\": \"{b64_1}\"}}}}}}\n\n"
+            f"data: {{\"output\": {{\"audio\": {{\"data\": \"{b64_2}\"}}}}}}\n\n"
+            "data: [DONE]\n\n"
+        ).encode()
+
+        class FakeStreamResponse:
+            status_code = 200
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return None
+
+            async def aiter_lines(self):
+                for line in sse_body.decode().split("\n"):
+                    yield line
+
+        class FakeClient:
+            def stream(self, *args, **kwargs):
+                return FakeStreamResponse()
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return None
+
+        with patch.dict("os.environ", {"DASHSCOPE_API_KEY": "test-key", "DASHSCOPE_STREAMING": "1"}):
+            provider = DashScopeTtsProvider()
+            ctx = ProviderContext(project_id="test", storage=_FakeStorage())
+            from translator_api.providers.tts.base import TtsInput
+
+            inp = TtsInput(text="Hello", config=TtsProviderConfig(voice_id="Cherry"))
+
+            with patch("httpx.AsyncClient", return_value=FakeClient()):
+                result = await provider.run(inp, ctx=ctx)
+
+        assert result.audio_storage_key.startswith("tts/dashscope_tts/")
+        assert result.fallback_used is False
+
+    @pytest.mark.asyncio
+    async def test_streaming_disabled_by_default(self) -> None:
+        """Without DASHSCOPE_STREAMING=1, must use non-streaming path."""
+        import os
+
+        os.environ.pop("DASHSCOPE_STREAMING", None)
+
+        from translator_api.providers.tts.cloud_qwen3 import _streaming_enabled
+        assert _streaming_enabled() is False
+
+
+class TestSseParser:
+    def test_parses_audio_chunk(self) -> None:
+        from translator_api.providers.tts.cloud_qwen3 import _parse_sse_event
+
+        payload = '{"output": {"audio": {"data": "abc123", "url": "https://example.com"}}}'
+        assert _parse_sse_event(payload) == "abc123"
+
+    def test_returns_none_for_usage_summary(self) -> None:
+        from translator_api.providers.tts.cloud_qwen3 import _parse_sse_event
+
+        payload = '{"usage": {"total_tokens": 100}}'
+        assert _parse_sse_event(payload) is None
+
+    def test_returns_none_for_malformed(self) -> None:
+        from translator_api.providers.tts.cloud_qwen3 import _parse_sse_event
+
+        assert _parse_sse_event("not json") is None
+        assert _parse_sse_event("") is None
+
+
 class _FakeStorage:
     def upload(self, key: str, data: bytes, mime: str = "application/octet-stream") -> None:
         pass
