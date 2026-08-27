@@ -14,8 +14,8 @@ video with burned-in subtitles.
 ### 1. Clone and install
 
 ```bash
-git clone https://example.com/translator.git
-cd translator
+git clone https://github.com/QuyenNHPH56802/PhimNganRepositoryApp.git
+cd PhimNganRepositoryApp
 
 # Python
 python -m venv .venv && .venv/scripts/activate   # Windows
