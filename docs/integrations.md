@@ -104,6 +104,7 @@ Before tagging `vX.Y.Z`:
 | Provider | Engine | Env vars | Notes |
 |----------|--------|----------|-------|
 | Edge-TTS | `edge_tts` | none | Free Microsoft Edge neural voices; no API key. Vietnamese voices `vi-VN-HoaiMyNeural` (female) and `vi-VN-NamMinhNeural` (male). Recommended default when no GPU is available. |
+| **DashScope** | `dashscope_tts` | `DASHSCOPE_API_KEY` | Alibaba hosted Qwen3-TTS; no GPU or local model needed. High quality multilingual. ~$0.004/min (check current pricing). |
 | Qwen3-TTS | `qwen3_tts` | none | Alibaba multilingual model; deployed locally. Requires `qwen-tts` SDK and a downloaded checkpoint. High quality for `zh/en/vi/ja/ko`. |
 | VietVoice | `vietvoice_tts` | none | Vietnamese-only local model; GPU recommended. |
 | VieNeu | `vieneu_v3_turbo` | none | Vietnamese voice-clone capable; GPU recommended. |
@@ -138,6 +139,26 @@ curl -X POST http://localhost:3099/synthesize \
   -H 'Content-Type: application/json' \
   -d '{"text": "Xin chào các bạn", "voice": "vi-VN-HoaiMyNeural"}'
 ```
+
+### DashScope Qwen3-TTS quick start
+
+```bash
+# 1. Get API key from https://dashscope.console.aliyun.com
+export DASHSCOPE_API_KEY=sk-...
+
+# 2. Set as default TTS provider in the web UI: Settings → TTS → DashScope
+#    or via API: PUT /projects/<id>/provider-configs with provider_id=dashscope_tts
+
+# 3. Test with curl (non-streaming)
+curl -X POST https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation \
+  -H "Authorization: Bearer $DASHSCOPE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "qwen3-tts-flash", "input": {"text": "Hello world", "voice": "Cherry", "language_type": "English"}}'
+```
+
+No local model download required — synthesis runs on Alibaba Cloud. Supported voices
+include `Cherry`, `Ethan`, `Serena`, `Chelsie` (and more). Switch models via
+`provider_id=dashscope_tts` in the project config.
 
 ### Qwen3-TTS quick start
 

@@ -206,7 +206,8 @@ Sau khi khởi động xong, mở trình duyệt web (Chrome, Edge, Firefox):
 3. Chọn **ngôn ngữ đích** (video cần dịch sang)
 4. Chọn **giọng lồng tiếng** (xem chi tiết mục [6.5 — TTS providers](#65-tts-với-qwen3-và-các-tùy-chọn-khác)):
    - **Edge TTS (miễn phí)** — khuyến nghị cho người mới, không cần API key, không cần GPU
-   - **Qwen3 TTS (chất lượng cao)** — cần cài thêm model
+   - **DashScope Qwen3 (cloud)** — chất lượng cao, không cần GPU, cần API key
+   - **Qwen3 TTS (local GPU)** — cần cài thêm model + GPU
    - **VietVoice / VieNeu / CosyVoice** — cần GPU
    - **Azure / Google / ElevenLabs** — cần API key thương mại
 5. Nhấn **"Bắt đầu"**
@@ -228,7 +229,7 @@ Khi hoàn tất, nhấn **"Tải xuống"** để lưu video đã dịch.
 
 ### 6.5: TTS với Qwen3 và các tùy chọn khác
 
-Phần này hướng dẫn chi tiết cách chọn và cấu hình **giọng lồng tiếng (TTS provider)**. Translator hỗ trợ 9 provider khác nhau, chia thành 3 nhóm:
+Phần này hướng dẫn chi tiết cách chọn và cấu hình **giọng lồng tiếng (TTS provider)**. Translator hỗ trợ 10 provider khác nhau, chia thành 4 nhóm:
 
 #### Nhóm 1 — Miễn phí, không cần GPU (khuyến nghị cho người mới)
 
@@ -237,7 +238,13 @@ Phần này hướng dẫn chi tiết cách chọn và cấu hình **giọng l�
 | **Edge TTS** | `edge_tts` | Microsoft Edge neural voices, không cần API key | Chỉ truy cập được khi có internet |
 | **MeloTTS (VI)** | `melotts_vi` | Model Việt nhẹ, chạy CPU | Chỉ tiếng Việt, chất lượng vừa |
 
-#### Nhóm 2 — Chất lượng cao (cần GPU)
+#### Nhóm 2 — Cloud hosted, không cần GPU, chất lượng cao
+
+| Provider | Engine | Ưu điểm | Hạn chế | Chi phí |
+|----------|--------|---------|---------|---------|
+| **DashScope Qwen3** | `dashscope_tts` | Đa ngôn ngữ, không cần GPU, chất lượng rất cao | Cần internet + API key | ~$0.004/phút |
+
+#### Nhóm 3 — Chất lượng cao (cần GPU)
 
 | Provider | Engine | Ưu điểm | Hạn chế |
 |----------|--------|---------|---------|
@@ -246,7 +253,7 @@ Phần này hướng dẫn chi tiết cách chọn và cấu hình **giọng l�
 | **VieNeu** | `vieneu_v3_turbo` | Hỗ trợ voice clone | Cần GPU |
 | **CosyVoice 3** | `cosyvoice_3` | Đa ngôn ngữ + voice clone | Cần GPU mạnh (~12GB VRAM) |
 
-#### Nhóm 3 — Thương mại (cần API key)
+#### Nhóm 4 — Thương mại (cần API key)
 
 | Provider | Engine | Biến môi trường |
 |----------|--------|-----------------|
@@ -254,7 +261,31 @@ Phần này hướng dẫn chi tiết cách chọn và cấu hình **giọng l�
 | **Google Cloud TTS** | `cloud_google` | `GOOGLE_TTS_KEY` |
 | **ElevenLabs** | `cloud_elevenlabs` | `ELEVENLABS_API_KEY` |
 
-#### Hướng dẫn cụ thể cho Qwen3 TTS
+#### Hướng dẫn cụ thể cho DashScope Qwen3 (không cần GPU)
+
+**Khuyến nghị: Đây là cách nhanh nhất để dùng Qwen3 mà không cần GPU.**
+
+**Bước 1 — Lấy API key:**
+1. Truy cập https://dashscope.console.aliyun.com
+2. Đăng nhập tài khoản Alibaba Cloud (có thể dùng tài khoản Alipay/taobao)
+3. Tạo API key mới (DashScope → Create API Key)
+
+**Bước 2 — Thêm vào .env:**
+```bash
+DASHSCOPE_API_KEY=sk-your-key-here
+```
+
+**Bước 3 — Chọn provider trong giao diện:**
+1. Mở http://localhost:3000/settings
+2. Tại mục **TTS**, chọn **DashScope Qwen3 (cloud)** trong dropdown
+3. Nhấn **"Update"** để lưu
+
+**Bước 4 — Chạy dịch thử:**
+- Quay lại dự án → nhấn **"Dịch"**
+
+---
+
+#### Hướng dẫn cụ thể cho Qwen3 TTS (local GPU)
 
 **Yêu cầu phần cứng:**
 - GPU NVIDIA với CUDA (khuyến nghị ≥ 8 GB VRAM)
@@ -285,14 +316,14 @@ Lệnh này sẽ tải checkpoint về `~/.cache/qwen-tts/` (~5–6 GB).
 
 #### So sánh nhanh
 
-| Tiêu chí | Edge | Qwen3 | VietVoice | ElevenLabs |
-|----------|------|-------|-----------|------------|
-| Chất lượng | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| Tốc độ (CPU) | ⚡⚡⚡ | ⚡ | ⚡⚡ | ⚡⚡⚡ |
-| Tốc độ (GPU) | ⚡⚡⚡ | ⚡⚡⚡ | ⚡⚡⚡ | ⚡⚡⚡ |
-| Chi phí | Miễn phí | Miễn phí | Miễn phí | ~$5/tháng |
-| Yêu cầu GPU | Không | Có (CPU chậm) | Có | Không |
-| Số ngôn ngữ | 100+ | 11 | 1 (VI) | 29 |
+| Tiêu chí | Edge | DashScope | Qwen3 | VietVoice | ElevenLabs |
+|----------|------|-----------|-------|-----------|------------|
+| Chất lượng | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| Tốc độ (CPU) | ⚡⚡⚡ | ⚡⚡⚡ | ⚡ | ⚡⚡ | ⚡⚡⚡ |
+| Tốc độ (GPU) | ⚡⚡⚡ | ⚡⚡⚡ | ⚡⚡⚡ | ⚡⚡⚡ | ⚡⚡⚡ |
+| Chi phí | Miễn phí | ~$0.004/phút | Miễn phí | Miễn phí | ~$5/tháng |
+| Yêu cầu GPU | Không | Không | Có (CPU chậm) | Có | Không |
+| Số ngôn ngữ | 100+ | 11+ | 11 | 1 (VI) | 29 |
 
 Xem thêm chi tiết tại `docs/integrations.md` mục 8.
 

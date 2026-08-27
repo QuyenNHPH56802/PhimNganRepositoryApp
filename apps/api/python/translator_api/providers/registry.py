@@ -65,6 +65,7 @@ from translator_api.providers.translate import (
 from translator_api.providers.tts import (
     AzureCloudTtsProvider,
     CosyVoice3Provider,
+    DashScopeTtsProvider,
     EdgeTtsProvider,
     ElevenLabsTtsProvider,
     GoogleCloudTtsProvider,
@@ -95,6 +96,7 @@ def bootstrap():
     registry.register(TTS, MeloTtsViProvider())
     registry.register(TTS, EdgeTtsProvider())
     registry.register(TTS, Qwen3TtsProvider())
+    registry.register(TTS, DashScopeTtsProvider())
     registry.register(TTS, AzureCloudTtsProvider())
     registry.register(TTS, GoogleCloudTtsProvider())
     registry.register(TTS, ElevenLabsTtsProvider())

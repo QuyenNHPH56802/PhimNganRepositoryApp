@@ -21,7 +21,8 @@ const kinds = [
 
 const ttsProviders = [
   { id: "edge_tts", label: "Edge TTS (free)", description: "Microsoft Edge neural voices, no API key required" },
-  { id: "qwen3_tts", label: "Qwen3 TTS (high quality)", description: "Alibaba Qwen3, multilingual, requires GPU for local deployment" },
+  { id: "dashscope_tts", label: "DashScope Qwen3 (cloud)", description: "Alibaba Qwen3, multilingual, no GPU required" },
+  { id: "qwen3_tts", label: "Qwen3 TTS (local)", description: "Alibaba Qwen3, multilingual, requires GPU for local deployment" },
   { id: "vietvoice_tts", label: "VietVoice TTS", description: "Vietnamese-only local model; GPU recommended" },
   { id: "vieneu_v3_turbo", label: "VieNeu TTS", description: "Vietnamese voice-clone capable; GPU recommended" },
   { id: "cosyvoice_3", label: "CosyVoice 3", description: "Multilingual voice-clone capable; GPU required" },

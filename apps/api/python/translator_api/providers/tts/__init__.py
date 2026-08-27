@@ -2,6 +2,7 @@
 
 from translator_api.providers.tts.azure import AzureCloudTtsProvider
 from translator_api.providers.tts.base import CloudTtsProvider, LocalTtsProvider, TtsInput
+from translator_api.providers.tts.cloud_qwen3 import DashScopeTtsProvider
 from translator_api.providers.tts.cosyvoice import CosyVoice3Provider
 from translator_api.providers.tts.edge import (
     DEFAULT_VOICE,
@@ -24,6 +25,7 @@ __all__ = [
     "AzureCloudTtsProvider",
     "CloudTtsProvider",
     "CosyVoice3Provider",
+    "DashScopeTtsProvider",
     "DEFAULT_VOICE",
     "EdgeTtsProvider",
     "ElevenLabsTtsProvider",
