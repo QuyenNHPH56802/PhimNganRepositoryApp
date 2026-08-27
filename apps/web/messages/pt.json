@@ -33,5 +33,17 @@
     "processing": "Processando",
     "ready": "Pronto",
     "failed": "Falhou"
+  },
+  "tts": {
+    "providers": {
+      "edge": {
+        "label": "Edge TTS (grátis)",
+        "description": "Vozes neurais Microsoft Edge, sem chave de API"
+      },
+      "qwen3": {
+        "label": "Qwen3 TTS (alta qualidade)",
+        "description": "Alibaba Qwen3, multilíngue, requer GPU para implantação local"
+      }
+    }
   }
 }

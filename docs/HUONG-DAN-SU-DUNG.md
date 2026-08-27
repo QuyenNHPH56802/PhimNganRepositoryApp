@@ -1,7 +1,7 @@
 # Translator — Hướng Dẫn Sử Dụng Từ A đến Z
 
 > **Dành cho:** Người dùng không biết lập trình, người mới bắt đầu
-> **Phiên bản:** 1.0.0
+> **Phiên bản:** 1.1.0
 
 ---
 
@@ -13,6 +13,7 @@
 4. [Cài đặt dự án](#4-cài-đặt-dự-án)
 5. [Khởi động ứng dụng](#5-khởi-động-ứng-dụng)
 6. [Cách sử dụng](#6-cách-sử-dụng)
+   - 6.5: [TTS với Qwen3 và các tùy chọn khác](#65-tts-với-qwen3-và-các-tùy-chọn-khác)
 7. [Các chế độ chất lượng](#7-các-chế-độ-chất-lượng)
 8. [Các ngôn ngữ được hỗ trợ](#8-các-ngôn-ngữ-được-hỗ-trợ)
 9. [Xem tiến trình xử lý](#9-xem-tiến-trình-xử-lý)
@@ -203,7 +204,7 @@ Sau khi khởi động xong, mở trình duyệt web (Chrome, Edge, Firefox):
 1. Nhấn nút **"Dịch"** hoặc **"Translate"** bên cạnh video
 2. Chọn **ngôn ngữ nguồn** (video gốc)
 3. Chọn **ngôn ngữ đích** (video cần dịch sang)
-4. Chọn **giọng lồng tiếng**:
+4. Chọn **giọng lồng tiếng** (xem chi tiết mục [6.5 — TTS providers](#65-tts-với-qwen3-và-các-tùy-chọn-khác)):
    - **Edge TTS (miễn phí)** — khuyến nghị cho người mới, không cần API key, không cần GPU
    - **Qwen3 TTS (chất lượng cao)** — cần cài thêm model
    - **VietVoice / VieNeu / CosyVoice** — cần GPU
@@ -222,6 +223,78 @@ Sau khi khởi động xong, mở trình duyệt web (Chrome, Edge, Firefox):
    - ✅ Đang render video
 
 Khi hoàn tất, nhấn **"Tải xuống"** để lưu video đã dịch.
+
+---
+
+### 6.5: TTS với Qwen3 và các tùy chọn khác
+
+Phần này hướng dẫn chi tiết cách chọn và cấu hình **giọng lồng tiếng (TTS provider)**. Translator hỗ trợ 9 provider khác nhau, chia thành 3 nhóm:
+
+#### Nhóm 1 — Miễn phí, không cần GPU (khuyến nghị cho người mới)
+
+| Provider | Engine | Ưu điểm | Hạn chế |
+|----------|--------|---------|---------|
+| **Edge TTS** | `edge_tts` | Microsoft Edge neural voices, không cần API key | Chỉ truy cập được khi có internet |
+| **MeloTTS (VI)** | `melotts_vi` | Model Việt nhẹ, chạy CPU | Chỉ tiếng Việt, chất lượng vừa |
+
+#### Nhóm 2 — Chất lượng cao (cần GPU)
+
+| Provider | Engine | Ưu điểm | Hạn chế |
+|----------|--------|---------|---------|
+| **Qwen3 TTS** | `qwen3_tts` | Đa ngôn ngữ (zh/en/vi/ja/ko), chất lượng rất cao | Cần GPU (CUDA) và ~6GB VRAM |
+| **VietVoice** | `vietvoice_tts` | Giọng Việt tự nhiên | Chỉ tiếng Việt |
+| **VieNeu** | `vieneu_v3_turbo` | Hỗ trợ voice clone | Cần GPU |
+| **CosyVoice 3** | `cosyvoice_3` | Đa ngôn ngữ + voice clone | Cần GPU mạnh (~12GB VRAM) |
+
+#### Nhóm 3 — Thương mại (cần API key)
+
+| Provider | Engine | Biến môi trường |
+|----------|--------|-----------------|
+| **Azure TTS** | `cloud_azure` | `AZURE_TTS_KEY` |
+| **Google Cloud TTS** | `cloud_google` | `GOOGLE_TTS_KEY` |
+| **ElevenLabs** | `cloud_elevenlabs` | `ELEVENLABS_API_KEY` |
+
+#### Hướng dẫn cụ thể cho Qwen3 TTS
+
+**Yêu cầu phần cứng:**
+- GPU NVIDIA với CUDA (khuyến nghị ≥ 8 GB VRAM)
+- Ổ cứng trống ≥ 6 GB (để chứa checkpoint)
+- RAM hệ thống ≥ 16 GB
+
+**Bước 1 — Cài đặt SDK:**
+```bash
+pip install qwen-tts
+```
+
+**Bước 2 — Tải checkpoint (chỉ cần làm 1 lần):**
+```bash
+python -c "from qwen_tts import Qwen3TTS; Qwen3TTS(model_id='qwen3-tts')"
+```
+Lệnh này sẽ tải checkpoint về `~/.cache/qwen-tts/` (~5–6 GB).
+
+**Bước 3 — Đổi TTS provider trong giao diện:**
+1. Mở http://localhost:3000/settings
+2. Tại mục **TTS**, chọn **Qwen3 TTS (high quality)** trong dropdown
+3. Nhấn **"Update"** để lưu
+
+**Bước 4 — Chạy dịch thử:**
+- Quay lại dự án → nhấn **"Dịch"**
+- Kiểm tra log Temporal (http://localhost:8233) để xác nhận `tts_synthesize` chạy trên `tts-queue`
+
+**Lưu ý:** Nếu không có GPU, Qwen3 vẫn chạy được trên CPU nhưng rất chậm (1 câu ~10 giây audio mất ~3 phút). Khuyến nghị dùng Edge TTS cho máy không có GPU.
+
+#### So sánh nhanh
+
+| Tiêu chí | Edge | Qwen3 | VietVoice | ElevenLabs |
+|----------|------|-------|-----------|------------|
+| Chất lượng | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| Tốc độ (CPU) | ⚡⚡⚡ | ⚡ | ⚡⚡ | ⚡⚡⚡ |
+| Tốc độ (GPU) | ⚡⚡⚡ | ⚡⚡⚡ | ⚡⚡⚡ | ⚡⚡⚡ |
+| Chi phí | Miễn phí | Miễn phí | Miễn phí | ~$5/tháng |
+| Yêu cầu GPU | Không | Có (CPU chậm) | Có | Không |
+| Số ngôn ngữ | 100+ | 11 | 1 (VI) | 29 |
+
+Xem thêm chi tiết tại `docs/integrations.md` mục 8.
 
 ---
 

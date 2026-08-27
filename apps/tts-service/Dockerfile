@@ -10,12 +10,18 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends \
+        curl \
+        sox \
+        libsndfile1 \
+        ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./
+
 RUN pip install --upgrade pip \
-    && pip install fastapi 'uvicorn[standard]' edge-tts httpx pydantic \
+    && pip install --no-cache-dir soundfile librosa \
+    && pip install --no-cache-dir fastapi 'uvicorn[standard]' edge-tts httpx pydantic \
     || pip install fastapi 'uvicorn[standard]' edge-tts httpx pydantic
 
 COPY tts_service ./tts_service

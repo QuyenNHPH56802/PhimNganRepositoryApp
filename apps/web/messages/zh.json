@@ -33,5 +33,17 @@
     "processing": "处理中",
     "ready": "就绪",
     "failed": "失败"
+  },
+  "tts": {
+    "providers": {
+      "edge": {
+        "label": "Edge TTS（免费）",
+        "description": "微软 Edge 神经语音，无需 API 密钥"
+      },
+      "qwen3": {
+        "label": "Qwen3 TTS（高质量）",
+        "description": "阿里 Qwen3，多语言，本地部署需要 GPU"
+      }
+    }
   }
 }

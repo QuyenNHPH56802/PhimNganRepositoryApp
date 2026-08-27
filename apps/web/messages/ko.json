@@ -33,5 +33,17 @@
     "processing": "처리 중",
     "ready": "완료",
     "failed": "실패"
+  },
+  "tts": {
+    "providers": {
+      "edge": {
+        "label": "Edge TTS (무료)",
+        "description": "Microsoft Edge 신경망 음성, API 키 불필요"
+      },
+      "qwen3": {
+        "label": "Qwen3 TTS (고품질)",
+        "description": "Alibaba Qwen3, 다국어, 로컬 배포에 GPU 필요"
+      }
+    }
   }
 }

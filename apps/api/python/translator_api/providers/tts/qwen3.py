@@ -68,7 +68,23 @@ class Qwen3TtsProvider(LocalTtsProvider):
     async def run(self, payload: TtsInput, *, ctx: ProviderContext) -> TtsResponse:
         # Defer to the standard LocalTtsProvider contract for upload/storage
         # and signature, then enrich with provider-specific response metadata.
-        result = await super().run(payload, ctx=ctx)
+        import time as _time
+
+        from translator_api.observability.metrics import observe_tts_call
+
+        started = _time.perf_counter()
+        try:
+            result = await super().run(payload, ctx=ctx)
+        except Exception:
+            observe_tts_call(provider=self.id, generate_seconds=_time.perf_counter() - started)
+            raise
+        elapsed = _time.perf_counter() - started
+        audio_seconds = result.duration_ms / 1000.0 if getattr(result, "duration_ms", 0) else None
+        observe_tts_call(
+            provider=self.id,
+            generate_seconds=elapsed,
+            audio_seconds=audio_seconds,
+        )
         return TtsResponse(
             voice_profile_id=result.voice_profile_id or payload.voice_profile_id,
             audio_storage_key=result.audio_storage_key,

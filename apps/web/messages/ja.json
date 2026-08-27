@@ -33,5 +33,17 @@
     "processing": "処理中",
     "ready": "完了",
     "failed": "失敗"
+  },
+  "tts": {
+    "providers": {
+      "edge": {
+        "label": "Edge TTS（無料）",
+        "description": "Microsoft Edge ニューラル音声、API キー不要"
+      },
+      "qwen3": {
+        "label": "Qwen3 TTS（高品質）",
+        "description": "Alibaba Qwen3、多言語、ローカル展開には GPU が必要"
+      }
+    }
   }
 }

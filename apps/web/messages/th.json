@@ -33,5 +33,17 @@
     "processing": "กำลังประมวลผล",
     "ready": "พร้อม",
     "failed": "ล้มเหลว"
+  },
+  "tts": {
+    "providers": {
+      "edge": {
+        "label": "Edge TTS (ฟรี)",
+        "description": "เสียงประสาท Microsoft Edge ไม่ต้องใช้ API key"
+      },
+      "qwen3": {
+        "label": "Qwen3 TTS (คุณภาพสูง)",
+        "description": "Alibaba Qwen3 หลายภาษา ใช้ GPU สำหรับการติดตั้งในเครื่อง"
+      }
+    }
   }
 }

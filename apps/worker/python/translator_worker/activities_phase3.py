@@ -244,7 +244,14 @@ async def tts_synthesize(project_id: str, asset_id: str | None = None) -> dict:
         _record_step(session, project_id, "tts_synthesize", status="processing")
         config_data = _resolve_provider_config(session, UUID(project_id), TTS) or {}
         cfg = TtsProviderConfig(**config_data) if config_data else TtsProviderConfig()
-        provider = VietVoiceTtsProvider()
+        # Resolve provider from registry so we honour the project's
+        # configured `provider_id` (e.g. ``edge_tts``, ``qwen3_tts``,
+        # ``vietvoice_tts``). Fall back to VietVoice only when the registry
+        # has no matching provider (defensive default).
+        try:
+            provider = get_default_registry().get(TTS, cfg.provider_id)
+        except KeyError:
+            provider = VietVoiceTtsProvider()
         ctx = _ctx(project_id, asset_id, session)
         voice_profile = session.query(VoiceProfile).filter_by(project_id=UUID(project_id)).first()
         payload = TtsInput(
@@ -254,9 +261,18 @@ async def tts_synthesize(project_id: str, asset_id: str | None = None) -> dict:
             output_storage_prefix=f"tts/{project_id}",
             config=cfg,
         )
+        import time as _time
+        from translator_worker.metrics import observe_tts
+
+        started = _time.perf_counter()
         try:
             response = await provider.run(payload, ctx=ctx)
+            elapsed = _time.perf_counter() - started
+            audio_seconds = (response.duration_ms / 1000.0) if getattr(response, "duration_ms", 0) else None
+            observe_tts(provider=provider.id, generate_seconds=elapsed, audio_seconds=audio_seconds)
         except Exception as exc:
+            elapsed = _time.perf_counter() - started
+            observe_tts(provider=provider.id, generate_seconds=elapsed)
             activity.logger.info("tts_synthesize stub: %s", exc)
             from translator_shared.providers import ArtifactSignature
             from translator_shared.provider_responses_extra import TtsResponse
@@ -270,7 +286,7 @@ async def tts_synthesize(project_id: str, asset_id: str | None = None) -> dict:
                     input_hash="pending",
                     model_id=cfg.model_id,
                     model_version=cfg.model_id,
-                    provider_build=cfg.provider_id,
+                    provider_build=provider.id,
                     config_hash="pending",
                 ),
                 fallback_used=True,
