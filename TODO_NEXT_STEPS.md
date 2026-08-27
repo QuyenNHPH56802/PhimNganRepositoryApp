@@ -1,75 +1,114 @@
 # Translator – Next Steps (TODO)
 
-Trạng thái: **CPU-only Qwen3-TTS inference đã được xác minh hoạt động** (model load + 9 speakers + 11 languages + generate_custom_voice OK). Tuy nhiên CPU quá chậm (text ~50s audio mất ~40 phút). Cần chuyển sang GPU hoặc dùng API hosted.
+**Last reviewed:** 2026-08-27 18:30 UTC+7 (after pulling v1.3.0 + China-Vietnam branch)
+
+**Trạng thái:** Hầu hết items trong TODO cũ đã được giải quyết bởi v1.1.0–v1.3.0 mới merge. Phần lớn còn lại thuộc về nhánh `feature/china-vietnam-setup` (phases 5–8 cần user + test videos + GUI).
 
 ---
 
-## 1. Demo 15s với Qwen3-TTS (MỤC TIÊU HIỆN TẠI)
+## ✅ ĐÃ GIẢI QUYẾT (bởi code mới pull)
 
-### Đang chạy nền
-- [Job #481752](file:///C:/Users/QUYÊN/.cursor/projects/c-Users-QUY-N-Desktop-Translator/terminals/481752.txt) — `python /tmp/gen_demo.py` đang sinh audio mẫu với text ~15s. Chờ khi chạy xong (`Generated in <time>s` + `Saved: /tmp/demo_15s.wav`).
-- Nếu quá 60 phút chưa xong → kill job, chuyển sang plan B bên dưới.
+| Mục cũ | Giải quyết bởi |
+|---|---|
+| 1. Demo 15s Qwen3-TTS (CPU quá chậm) | ✅ **v1.2.0**: `DashScopeTtsProvider` (`cloud_qwen3.py`) — hosted, không cần GPU. + SSE streaming. |
+| 1. Plan B: Hosted API / Edge fallback | ✅ `dashscope_tts` + `edge_tts` đều đã trong registry (xem `registry.py:97-99`). |
+| 2. Bind Qwen3 vào registry | ✅ `Qwen3TtsProvider` đã register trong `registry.py:98`. |
+| 2. /metrics Prometheus | ✅ `apps/tts-service/tts_service/main.py:139` + 4 histograms. |
+| 2. Dockerfile fix sox/librosa | ✅ `apps/tts-service/Dockerfile:14-17` có sox + libsndfile1 + ffmpeg. |
+| 3. Workflows.py → workflows/ package | ✅ `workflows/__init__.py` re-export từ `workflows_impl.py`. |
+| 3. Workflows_impl wire activities | ✅ `workflows_impl.py` đầy đủ: ProjectWorkflow, SubtitleWorkflow, DubbingWorkflow, ChunkWorkflow. |
+| 4. Web UI TTS provider selector | ✅ `app/settings/page.tsx` dropdown với 9 providers (Edge, Qwen3, VietVoice, VieNeu, CosyVoice 3, Azure, Google, ElevenLabs, MeloTTS). |
+| 5. Observability metrics | ✅ `observability/metrics.py` có `tts_generate_seconds`, `tts_audio_seconds`, `tts_chunks_total`, `tts_requests_total`. |
+| 6. Tests edge + dubbing | ✅ `test_providers_tts_edge.py`, `test_providers_dubbing_speedrate.py`, **mới** `test_providers_tts_dashscope.py`. |
+| 8. Bump version 1.0.0 → 1.1.0 | ✅ Project hiện ở **v1.3.0** (theo CHANGELOG.md). |
 
-### Plan B nếu CPU không khả thi
-- **GPU**: chạy với `device_map="cuda"` hoặc `"mps"` (Apple Silicon) — nhanh gấp ~20–50x.
-- **Quantization**: dùng `Qwen3-TTS-12Hz-0.6B-CustomVoice` với `torch_dtype=torch.float16` hoặc `bitsandbytes 4-bit` để giảm RAM.
-- **Model nhỏ hơn**: thử `Qwen/Qwen3-TTS-12Hz-0.6B-Base` (base, không custom voice).
-- **Hosted API**: dùng DashScope / Alibaba Cloud Model Studio endpoint để demo nhanh.
-- **Fallback**: dùng `edge-tts` (đã có provider `edge.py`) để có demo audio ngay, đánh dấu Qwen3 là optional.
+---
 
-## 2. Hoàn thiện TTS Service (`apps/tts-service/`)
+## 🆕 Items MỚI từ code vừa pull (prioritized)
 
-- [ ] Chạy lại `tests/test_chunker.py` & các test khác khi container recover.
-- [ ] Bind Qwen3 vào `apps/api/python/translator_api/providers/tts/qwen3.py` (đã có sẵn file) qua registry provider.
-- [ ] Thêm healthcheck + Prometheus metrics endpoint (`/metrics`).
-- [ ] Cấu hình `tts-service` chạy ngoài docker-compose dev (đã có trong compose).
-- [ ] Fix Dockerfile: `apt-get install -y --no-install-recommends sox libsndfile1 ffmpeg` (sox thiếu gây crash `librosa`).
+### A. Hoàn thiện `DashScopeTtsProvider` (MỨC CAO NHẤT)
+- [ ] Test live với API key thật (cần `DASHSCOPE_API_KEY` từ user)
+- [ ] Verify `_chunk_text` không cắt sai câu có dấu tiếng Việt (regex `[.!?\n]` không khớp `.` cuối câu VN)
+- [ ] Thêm test cho Vietnamese language detection (hiện đang fallback về "Auto" — xem `test_vietnamese_falls_back_to_auto`)
+- [ ] Kiểm tra fallback chain khi DashScope fail: `dashscope_tts → edge_tts → vietvoice_tts`
+- [ ] Thêm healthcheck endpoint `/healthz/dashscope` để verify connectivity
 
-## 3. Worker & Workflows
+### B. TTS Service microservice (ready nhưng chưa e2e test)
+- [ ] End-to-end test: POST `/synthesize` với Qwen3 engine (cần `TTS_ENGINE=qwen3` + model download)
+- [ ] Cache hit rate verification (`TTS_CHUNKS_TOTAL{cache="hit"}` vs `cache="miss"`)
+- [ ] Concurrent load test (env `TTS_CONCURRENCY=2` — bump và benchmark)
+- [ ] Wire tts-service vào docker-compose dev (đã có trong compose — verify)
 
-- [ ] `apps/worker/python/translator_worker/workflows.py` đã bị xóa → chuyển sang package `workflows/`. Verify Temporal worker vẫn register đúng.
-- [ ] `workflows_impl.py` chưa được wire — kiểm tra import path & activities.
-- [ ] Tích hợp TTS vào dubbing workflow (chunker → qwen3 → mux).
+### C. Worker Activities (theo v1.3.0 CHANGELOG)
+- [ ] `translate_segments` activity: verify load `TranscriptVersion` qua `TranscriptRepository.latest_for_project()` không vỡ với project chưa có transcript
+- [ ] `tts_synthesize` activity: verify fallback chain khi Qwen3 model chưa download
+- [ ] `tts_synthesize` reads `tts_text` OR `display_text` — xử lý trường hợp cả hai null
 
-## 4. Web UI
+### D. Web UI (CN-VN branch)
+- [ ] `verbatimModuleSyntax` enabled in tsconfig — verify build không vỡ
+- [ ] i18n keys `tts.providers` đã có cho 10 locales — check zh/th/pt/ko/ja/fr/de/es chưa có `tts.dashscope` key
 
-- [ ] Verify build Next.js không vỡ sau khi đổi `tsconfig.json` (verbatimModuleSyntax).
-- [ ] Thêm UI control chọn TTS provider (edge / qwen3 / elevenlabs).
-- [ ] i18n keys mới (`en.json`, `vi.json`) — kiểm tra không bị thiếu ở các locale khác.
+---
 
-## 5. Observability
+## 🌏 China-Vietnam pipeline (`feature/china-vietnam-setup` đã merge)
 
-- [ ] Metrics mới trong `observability/metrics.py` — expose `tts_generate_seconds`, `tts_audio_seconds`.
-- [ ] Tracing cho Qwen3TTSModel.generate_custom_voice.
+Xem `docs/NEXT_STEPS_PLAN.md` để biết chi tiết. Tóm tắt:
 
-## 6. CI / Tests
+### Phases 0–11 ✅ DONE
+- Pre-packaged pyVideoTrans v4.11 (2.93 GB) + extracted (7.26 GB)
+- GPU verified: RTX 4060 8GB / CUDA 13.2
+- 4 Windows .bat scripts: `scripts/china-vietnam/{setup,start,doctor,update}.bat`
 
-- [ ] `tests/test_providers_dubbing_speedrate.py` — chạy pass.
-- [ ] `tests/test_providers_tts_edge.py` — chạy pass.
-- [ ] Thêm `tests/test_providers_tts_qwen3.py` (skip nếu thiếu model/GPU).
+### Pending (cần user)
+- **Phase 5**: Test Chinese ASR (FunASR) — cần test video Chinese + GUI
+- **Phase 6**: Test DeepSeek translation — cần API key
+- **Phase 7**: Test Vietnamese TTS Edge-TTS — cần GUI
+- **Phase 8**: Test full pipeline end-to-end
+- **Phase 12**: Regression tests
+- **Phase 13**: Performance benchmarks → fill `BENCHMARK_CHINA_VIETNAM.md`
 
-## 7. Docs
+### Critical decisions pending
+| Decision | Default |
+|---|---|
+| Translation provider | DeepSeek |
+| TTS provider | Edge-TTS |
+| Voice role | vi-VN-HoaiMyNeural |
+| Video codec | libx265 (HEVC), CRF 20 |
+| Pipeline mode | GUI for now |
 
-- [ ] Cập nhật `docs/HUONG-DAN-SU-DUNG.md` với phần "TTS với Qwen3".
-- [ ] `docs/integrations.md` — bổ sung bảng so sánh providers (edge / qwen3 / elevenlabs).
+---
 
-## 8. Cleanup
+## 🛠 Cleanup nhỏ còn lại
 
-- [ ] Xóa `commit_msg.txt` & `req.json` khỏi root (file test, không thuộc dự án).
-- [ ] Bump version trong `pyproject.toml` (1.0.0 → 1.1.0).
+- [ ] Xóa `commit_msg.txt` & `req.json` ở root repo (file test cá nhân)
+- [ ] `.gitignore`: đã có `pyvideotrans-win/` exclude (verify)
+- [ ] Tag local: cần push tag `v1.2.0` & `legacy-v1.3.0` lên remote (đã fetch thấy nhưng chưa chắc đã push)
 
 ---
 
 ## Quick commands
 
 ```bash
-# Run Qwen3 demo (CPU, chậm)
-docker compose -p translator -f infra/docker/docker-compose.yml exec tts-service \
-  python -c 'from qwen_tts import Qwen3TTSModel; \
-  m = Qwen3TTSModel.from_pretrained("Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice", device_map="cpu"); \
-  wavs, sr = m.generate_custom_voice(text="Hello world", speaker="serena", language="english"); \
-  import soundfile as sf; sf.write("/tmp/demo.wav", wavs[0], sr)'
+# Pull latest
+git pull origin main
 
-# Test chunker
-docker compose -p translator -f infra/docker/docker-compose.yml exec tts-service pytest tests/test_chunker.py -v
+# Test DashScope (cần API key)
+DASHSCOPE_API_KEY=sk-xxx pytest apps/api/python/tests/test_providers_tts_dashscope.py -v
+
+# Test TTS service chunker (không cần Docker)
+cd apps/tts-service && pytest tests/test_chunker.py -v
+
+# Push tags
+git push origin v1.2.0 legacy-v1.3.0
+
+# Cleanup root test artifacts
+rm -f commit_msg.txt req.json
 ```
+
+---
+
+## ⚠️ Known blockers cho session hiện tại
+
+- **Docker daemon không available** trong session → không thể chạy `docker compose` để test TTS service live
+- **Không có GUI access** → không thể test `sp.exe` của pyVideoTrans
+- **Chưa có DASHSCOPE_API_KEY** → chưa thể verify provider live (chỉ có thể chạy unit tests với mock)

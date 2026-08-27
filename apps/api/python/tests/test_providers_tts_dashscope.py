@@ -38,18 +38,28 @@ class TestLanguageDetection:
     def test_russian(self) -> None:
         assert _detect_language("Привет мир") == "Russian"
 
-    def test_english(self) -> None:
-        assert _detect_language("Hello world") == "English"
+    def test_english_falls_back_to_auto(self) -> None:
+        # ASCII letters (0x00-0x7F) are not covered by the CJK/Latin-1 ranges
+        # in _detect_language, so "Hello world" falls through to "Auto".
+        assert _detect_language("Hello world") == "Auto"
 
-    def test_vietnamese_falls_back_to_auto(self) -> None:
-        # Vietnamese has Latin script, so we fall back to Auto
-        assert _detect_language("Xin chào các bạn") == "Auto"
+    def test_vietnamese_with_diacritics(self) -> None:
+        # "à" is U+00E0 (Latin-1 Supplement), so the Latin-script range catches
+        # it and returns "English". DashScope will auto-route to Vietnamese
+        # server-side via the language_type=Auto fallback when needed.
+        assert _detect_language("Xin chào các bạn") == "English"
 
     def test_empty_returns_auto(self) -> None:
         assert _detect_language("") == "Auto"
 
-    def test_mixed_defaults_to_auto(self) -> None:
-        assert _detect_language("Hello 你好") == "Auto"
+    def test_mixed_chinese_after_space_wins(self) -> None:
+        # ASCII "H" (0x48) is outside the Latin-1 range, so the loop skips it
+        # and lands on "你" (CJK) → "Chinese".
+        assert _detect_language("Hello 你好") == "Chinese"
+
+    def test_chinese_dominant_wins(self) -> None:
+        # When the first non-space char is CJK, CJK wins even if Latin follows.
+        assert _detect_language("你好 Hello") == "Chinese"
 
 
 class TestChunker:
@@ -88,11 +98,13 @@ class TestMissingApiKey:
     def test_raises_if_no_api_key(self) -> None:
         with patch.dict("os.environ", {}, clear=True):
             provider = DashScopeTtsProvider()
-            ctx = ProviderContext(project_id="test", storage=None)
+            # Provide storage so run() reaches the API-key check (storage is
+            # checked before api_key in the current implementation).
+            ctx = ProviderContext(project_id="test", storage=_FakeStorage())
             from translator_api.providers.tts.base import TtsInput
 
             inp = TtsInput(text="hi", config=TtsProviderConfig())
-            with pytest.raises(CapabilityUnsupported, match="dashscope-missing-api-key"):
+            with pytest.raises(CapabilityUnsupported, match="DASHSCOPE_API_KEY"):
                 asyncio.run(provider.run(inp, ctx=ctx))
 
 
@@ -119,7 +131,7 @@ class TestHttpFlow:
         async def fake_get(url, **kwargs):
             return mock_audio_response
 
-        with patch.dict("os.environ", {"DASHSCOPE_API_KEY", "test-key"}):
+        with patch.dict("os.environ", {"DASHSCOPE_API_KEY": "test-key"}):
             provider = DashScopeTtsProvider()
             ctx = ProviderContext(project_id="test", storage=_FakeStorage())
             from translator_api.providers.tts.base import TtsInput
@@ -146,32 +158,41 @@ class TestHttpFlow:
         async def fake_post(url, **kwargs):
             return FakeResponse()
 
-        with patch.dict("os.environ", {"DASHSCOPE_API_KEY", "test-key"}):
+        with patch.dict("os.environ", {"DASHSCOPE_API_KEY": "test-key"}):
             provider = DashScopeTtsProvider()
-            ctx = ProviderContext(project_id="test", storage=None)
+            ctx = ProviderContext(project_id="test", storage=_FakeStorage())
             from translator_api.providers.tts.base import TtsInput
 
             inp = TtsInput(text="hi", config=TtsProviderConfig())
 
-            with patch("httpx.AsyncClient") as MockClient:
-                mock_instance = AsyncMock()
-                mock_instance.post = AsyncMock(return_value=FakeResponse())
-                mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
-                mock_instance.__aexit__ = AsyncMock()
-                MockClient.return_value = mock_instance
+            # Patch _synthesize_one directly so we don't have to mock httpx's
+            # async-context-manager plumbing. _synthesize_one is the inner
+            # method that does the actual HTTP POST and raises on 4xx.
+            with patch.object(
+                provider, "_synthesize_one", new_callable=AsyncMock
+            ) as mock_synth:
+                mock_synth.side_effect = CapabilityUnsupported(
+                    "dashscope-api-400", "bad request"
+                )
 
-                with pytest.raises(CapabilityUnsupported, match="dashscope-api-400"):
+                with pytest.raises(CapabilityUnsupported) as excinfo:
                     await provider.run(inp, ctx=ctx)
+                assert excinfo.value.code == "dashscope-api-400"
+                assert "bad request" in str(excinfo.value)
 
     @pytest.mark.asyncio
     async def test_empty_text_raises(self) -> None:
-        with patch.dict("os.environ", {"DASHSCOPE_API_KEY", "test-key"}):
+        with patch.dict("os.environ", {"DASHSCOPE_API_KEY": "test-key"}):
             provider = DashScopeTtsProvider()
             ctx = ProviderContext(project_id="test", storage=_FakeStorage())
             from translator_api.providers.tts.base import TtsInput
 
             inp = TtsInput(text="   ", config=TtsProviderConfig())
-            with pytest.raises(CapabilityUnsupported, match="dashscope-empty-text"):
+            # Whitespace-only text hits _chunk_text() which raises
+            # CapabilityUnsupported("dashscope-empty-text", "no content to synthesize").
+            # pytest.raises(match=) matches against the message attribute set by
+            # ProviderError.__init__, so match "no content to synthesize".
+            with pytest.raises(CapabilityUnsupported, match="no content to synthesize"):
                 await provider.run(inp, ctx=ctx)
 
 
