@@ -1,7 +1,7 @@
 # Translator — Hướng Dẫn Sử Dụng Từ A đến Z
 
 > **Dành cho:** Người dùng không biết lập trình, người mới bắt đầu
-> **Phiên bản:** 1.1.0
+> **Phiên bản:** 1.2.0
 
 ---
 

@@ -49,12 +49,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   and `docs/HUONG-DAN-SU-DUNG.md`.
 
 ### Known Limitations (carried over from 1.0.0)
-- **Qwen3-TTS on CPU is slow**: ~40 minutes for 50 seconds of audio
-  (see `TODO_NEXT_STEPS.md`). Plan B options documented but not
-  implemented: GPU (`device_map="cuda"`), quantization, or hosted
-  DashScope endpoint.
-- **`commit_msg.txt` and `req.json`**: not present in this repository
-  snapshot; nothing to clean up.
+- ~~**Qwen3-TTS on CPU is slow**~~: Resolved in 1.2.0 via the new
+  `dashscope_tts` (hosted Qwen3) provider. No GPU or local model
+  download required.
+
+## [1.2.0] - 2026-08-27
+
+### Added
+- **DashScope Qwen3-TTS provider** (`apps/api/python/translator_api/providers/tts/cloud_qwen3.py`):
+  New `dashscope_tts` provider that calls Alibaba Cloud Model Studio's
+  hosted Qwen3-TTS endpoint. No GPU, no local model download — just set
+  `DASHSCOPE_API_KEY` and synthesis runs on Alibaba's servers. Supports
+  `qwen3-tts-flash` (default, fast) and `qwen3-tts-instruct-flash`
+  (instruction-controlled). Auto-detects language from text Unicode
+  ranges and chunks inputs to stay within the 512-token limit.
+- **DashScope provider tests** (`apps/api/python/tests/test_providers_tts_dashscope.py`):
+  Unit tests covering language detection (Chinese/Japanese/Korean/Russian/
+  English/Auto), text chunker, fingerprint, missing API key, HTTP error
+  responses, and empty text.
+- **DashScope env vars** (`.env.example`): `DASHSCOPE_API_KEY` and
+  `DASHSCOPE_BASE_URL` (defaults to international endpoint).
+
+### Changed
+- **Web UI TTS dropdown** (`apps/web/app/settings/page.tsx`):
+  Added "DashScope Qwen3 (cloud)" option between Edge TTS and local Qwen3.
+- **`docs/integrations.md`**: Added DashScope row to the TTS providers
+  table and a step-by-step quick start section with curl example.
+- **`docs/HUONG-DAN-SU-DUNG.md`**: Section 6.5 reorganized into 4 groups
+  (free/hosted/local/commercial), added DashScope setup guide, and added
+  DashScope column to the comparison table.
+- **Bumped to 1.2.0** in `VERSION`, root `pyproject.toml`, `README.md`,
+  and `docs/HUONG-DAN-SU-DUNG.md`.
 
 ## [1.0.0] - 2026-08-26
 

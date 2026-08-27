@@ -1,6 +1,6 @@
 # Translator — Multimodal Video Localization Platform
 
-**Version 1.1.0** · Apache 2.0
+**Version 1.2.0** · Apache 2.0
 
 An end-to-end platform for translating and dubbing video/audio content. Given a
 video file, it transcribes, diarizes speakers, translates between supported
