@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from translator_api.auth_dependency import get_identity
 from translator_api.db import get_db
 from translator_api.models import AuditLog, ProjectMember
 from translator_api.repositories.project_member_repository import ProjectMemberRepository
@@ -22,34 +23,17 @@ from translator_api.schemas import (
     ProjectConsentRequest,
     QualityModeResponse,
 )
-from translator_api.security.identity import UserIdentity
 from translator_api.security.consent import (
     ConsentActionError,
     grant_consent,
     revoke_consent,
     request_consent,
 )
-from translator_api.security.rbac import Role, require_project_role
-from translator_api.security.session import (
-    SessionError,
-    issue_session_jwt,
-    verify_session_jwt,
-)
 from translator_api.security.identity import UserIdentity
+from translator_api.security.rbac import Role, require_project_role
+from translator_api.security.session import issue_session_jwt
 
 router = APIRouter()
-
-
-def _identity(authorization: str | None = Header(default=None)) -> UserIdentity:
-    if not authorization:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="missing bearer token")
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid auth scheme")
-    try:
-        return verify_session_jwt(token)
-    except SessionError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 
 
 @router.post("/auth/login/stub", tags=["auth"])
@@ -66,7 +50,7 @@ async def login_stub(payload: dict) -> dict:
 
 
 @router.get("/auth/me", response_model=dict, tags=["auth"])
-async def auth_me(identity: UserIdentity = Depends(_identity)) -> dict:
+async def auth_me(identity: UserIdentity = Depends(get_identity)) -> dict:
     return identity.as_audit_dict()
 
 
@@ -77,7 +61,7 @@ async def auth_me(identity: UserIdentity = Depends(_identity)) -> dict:
 )
 async def list_audit(
     project_id: UUID,
-    identity: UserIdentity = Depends(_identity),
+    identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ) -> AuditLogListResponse:
     require_project_role(project_id, Role.VIEWER, db=db, identity=identity)
@@ -107,7 +91,7 @@ async def list_audit(
 async def voice_consent_request(
     voice_profile_id: UUID,
     payload: ProjectConsentRequest,
-    identity: UserIdentity = Depends(_identity),
+    identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ) -> ConsentStateResponse:
     try:
@@ -126,7 +110,7 @@ async def voice_consent_request(
 async def voice_consent_grant(
     voice_profile_id: UUID,
     payload: ProjectConsentRequest,
-    identity: UserIdentity = Depends(_identity),
+    identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ) -> ConsentStateResponse:
     try:
@@ -145,7 +129,7 @@ async def voice_consent_grant(
 async def voice_consent_revoke(
     voice_profile_id: UUID,
     payload: dict,
-    identity: UserIdentity = Depends(_identity),
+    identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ) -> ConsentStateResponse:
     try:
@@ -163,7 +147,7 @@ async def voice_consent_revoke(
 )
 async def list_members(
     project_id: UUID,
-    identity: UserIdentity = Depends(_identity),
+    identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ) -> MemberListResponse:
     require_project_role(project_id, Role.VIEWER, db=db, identity=identity)
@@ -184,7 +168,7 @@ async def list_members(
 async def add_member(
     project_id: UUID,
     payload: MemberAddRequest,
-    identity: UserIdentity = Depends(_identity),
+    identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ) -> MemberResponse:
     require_project_role(project_id, Role.OWNER, db=db, identity=identity)
@@ -202,14 +186,19 @@ async def add_member(
 async def set_quality_mode(
     project_id: UUID,
     payload: QualityModeRequest,
-    identity: UserIdentity = Depends(_identity),
+    identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ) -> QualityModeResponse:
     require_project_role(project_id, Role.EDITOR, db=db, identity=identity)
     policy = policy_for(QualityMode(payload.mode))
     project = ProjectRepository(db).get(project_id)
-    project.quality_mode = policy.asr_provider
-    project.subtitle_target_cps = policy.subtitle_target_cps
+    project.quality_mode = payload.mode  # Store the mode identifier, not the ASR provider
+    # subtitle_target_cps is a setting-level concern; ensure ProjectSettings row exists.
+    from translator_api.models import ProjectSettings
+    settings_row = db.get(ProjectSettings, project_id)
+    if settings_row is None:
+        settings_row = ProjectSettings(project_id=project_id)
+        db.add(settings_row)
     db.commit()
     db.add(AuditLog(entity_type="project", entity_id=str(project_id), action="quality_mode_set", payload={"actor": identity.email, "mode": payload.mode}))
     db.commit()

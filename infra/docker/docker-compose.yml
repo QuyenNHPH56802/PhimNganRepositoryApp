@@ -11,6 +11,7 @@ services:
       TRANSLATOR_DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/translator
       TRANSLATOR_TEMPORAL_ADDRESS: temporal:7233
       TRANSLATOR_STORAGE_PROVIDER_ID: local
+      TRANSLATOR_SESSION_SECRET: dev-only-secret-replace-in-production-1234567890abcdef1234567890abcdef
       TTS_SERVICE_URL: http://tts-service:3099
     depends_on: [db, temporal, tts-service]
 

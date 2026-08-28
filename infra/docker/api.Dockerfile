@@ -15,6 +15,7 @@ COPY pyproject.toml README.md ./
 COPY packages/shared/python/translator_shared ./packages/shared/python/translator_shared
 COPY apps/api/python/translator_api ./apps/api/python/translator_api
 COPY apps/worker/python/translator_worker ./apps/worker/python/translator_worker
+COPY infra/migrations ./infra/migrations
 
 RUN pip install --upgrade pip build && \
     pip install ".[api,shared]" && \

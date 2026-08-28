@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-
 import { loginStub } from "@web/lib/auth";
+import { Button, Card, Input } from "@/components/ui";
+import { theme } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
+  const { t } = useT();
   const [email, setEmail] = useState("ops@example.com");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -20,7 +23,7 @@ export default function LoginPage() {
     setError(null);
     try {
       await loginStub(API_BASE, email);
-      const next = params.get("next") ?? "/";
+      const next = params.get("next") ?? "/projects";
       router.replace(next);
     } catch (exc) {
       setError((exc as Error).message);
@@ -30,25 +33,33 @@ export default function LoginPage() {
   }
 
   return (
-    <section style={{ maxWidth: 360 }}>
-      <h1 style={{ fontSize: 24, marginBottom: 16 }}>Sign in</h1>
-      <p style={{ color: "#94a3b8", marginBottom: 16 }}>
-        Phase 4 stub. Production wires Google/Azure AD/Authentik OIDC.
-      </p>
-      <form onSubmit={handleSubmit}>
-        <label style={{ display: "block", marginBottom: 8 }}>Email</label>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{ width: "100%", padding: 8, marginBottom: 12 }}
-          required
-        />
-        <button type="submit" disabled={busy} style={{ padding: "8px 16px" }}>
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
-        {error && <p style={{ color: "#f87171", marginTop: 12 }}>{error}</p>}
-      </form>
-    </section>
+    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 320 }}>
+      <p style={{ margin: 0, color: theme.textMuted, fontSize: 12 }}>{t("auth.loginHint", "Dev build: any email works")}</p>
+      <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <span style={{ fontSize: 11, color: theme.textMuted, fontWeight: 600 }}>{t("auth.email", "Email")}</span>
+        <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+      </label>
+      {error && (
+        <div style={{ background: "#450a0a", color: theme.danger, padding: 8, borderRadius: 6, fontSize: 12 }}>
+          {error}
+        </div>
+      )}
+      <Button variant="primary" disabled={busy} type="submit">
+        {busy ? t("common.loading", "Đang tải…") : t("auth.loginButton", "Đăng nhập")}
+      </Button>
+    </form>
+  );
+}
+
+export default function LoginPage() {
+  const { t } = useT();
+  return (
+    <div style={{ padding: 24, display: "grid", placeItems: "center", minHeight: "100%" }}>
+      <Card title={t("auth.loginTitle", "Đăng nhập")} padded>
+        <Suspense fallback={<div style={{ color: theme.textMuted, fontSize: 12 }}>{t("common.loading", "Đang tải…")}</div>}>
+          <LoginForm />
+        </Suspense>
+      </Card>
+    </div>
   );
 }

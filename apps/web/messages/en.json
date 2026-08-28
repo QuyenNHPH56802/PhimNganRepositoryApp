@@ -5,7 +5,35 @@
     "loading": "Loading…",
     "forbidden": "403 — forbidden",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "back": "Back",
+    "delete": "Delete",
+    "edit": "Edit",
+    "rename": "Rename",
+    "retry": "Retry",
+    "open": "Open",
+    "close": "Close"
+  },
+  "app": {
+    "title": "China → VNE",
+    "subtitle": "Video Localization",
+    "language": "Language"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "projects": "Projects",
+    "voices": "Voices",
+    "settings": "Settings",
+    "admin": "Admin",
+    "newProject": "+ New Project"
+  },
+  "auth": {
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "loginTitle": "Sign in to Translator",
+    "email": "Email",
+    "loginButton": "Sign in",
+    "loginHint": "Dev build: any email works — token is auto-issued"
   },
   "admin": {
     "audit": "Audit log",
@@ -15,24 +43,37 @@
   "qualityMode": {
     "fast": "FAST",
     "balanced": "BALANCED",
-    "high": "HIGH"
+    "high": "HIGH",
+    "description": {
+      "fast": "Subtitles only, no dubbing. Fastest.",
+      "balanced": "Subtitles + Edge TTS dubbing. Balanced speed/quality.",
+      "high": "High-quality dubbing with background music separation. Slowest."
+    }
   },
   "errors": {
     "language_pair_unsupported": "Language pair not supported",
     "consent_required": "Speaker consent required",
-    "consent_revoked": "Consent has been revoked"
+    "consent_revoked": "Consent has been revoked",
+    "networkError": "Cannot reach backend",
+    "checkApiUrl": "Check API_BASE_URL and FastAPI server",
+    "uploadFailed": "Upload failed",
+    "workflowFailed": "Workflow failed"
   },
   "commands": {
     "run": "Run",
     "stop": "Stop",
     "upload": "Upload",
-    "download": "Download"
+    "download": "Download",
+    "trigger": "Run workflow",
+    "cancel": "Cancel workflow"
   },
   "status": {
     "queued": "Queued",
     "processing": "Processing",
     "ready": "Ready",
-    "failed": "Failed"
+    "failed": "Failed",
+    "draft": "Draft",
+    "succeeded": "Succeeded"
   },
   "tts": {
     "providers": {
@@ -45,5 +86,38 @@
         "description": "Alibaba Qwen3, multilingual, requires GPU for local deployment"
       }
     }
+  },
+  "project": {
+    "create": "Create project",
+    "title": "Title",
+    "titlePlaceholder": "Video name or description",
+    "sourceLanguage": "Source language",
+    "targetLanguage": "Target language",
+    "qualityMode": "Quality mode",
+    "createButton": "Create project",
+    "creating": "Creating…",
+    "dropVideo": "Drop video here, or click to choose",
+    "videoHint": "Supports MP4, MOV, MKV. Up to 2GB.",
+    "uploadedTo": "Uploaded to MinIO",
+    "noProjects": "No projects yet",
+    "openWorkspace": "Open workspace"
+  },
+  "workspace": {
+    "title": "Workspace",
+    "tabs": {
+      "transcript": "Transcript",
+      "translation": "Translation",
+      "speaker": "Speaker",
+      "voice": "Voice",
+      "tts": "TTS",
+      "subtitle": "Subtitle",
+      "audio": "Audio",
+      "render": "Render"
+    },
+    "noData": "No data yet. Upload a video and run the workflow.",
+    "triggerWorkflow": "Run Project Workflow",
+    "workflowRunning": "Workflow running…",
+    "workflowDone": "Workflow completed",
+    "workflowFailed": "Workflow failed"
   }
 }

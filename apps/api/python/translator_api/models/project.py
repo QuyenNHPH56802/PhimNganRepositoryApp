@@ -21,7 +21,7 @@ class Project(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     source_language: Mapped[str] = mapped_column(String(8), nullable=False, default="zh")
     target_language: Mapped[str] = mapped_column(String(8), nullable=False, default="vi")
-    quality_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="standard_dubbing")
+    quality_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="balanced")
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
     language_profile: Mapped[str] = mapped_column(String(32), nullable=False, default="zh-vi")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

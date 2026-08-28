@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from translator_api.db import get_db
-from translator_api.models import Project, Workflow
+from translator_api.models import Project, Workflow, Asset, AuditLog
 from translator_api.providers.registry import bootstrap
 from translator_api.providers.registry_constants import TRANSLATE
+from translator_api.repositories.asset_repository import AssetRepository
 from translator_api.repositories.provider_config_repository import ProviderConfigRepository
 from translator_shared.locale import providers_for_pair, supported_pair
 from translator_api.repositories.project_repository import ProjectRepository
@@ -32,12 +33,17 @@ from translator_api.schemas import (
 from translator_api.settings import get_settings
 from translator_api.storage_pkg import LocalStorage, S3CompatibleStorage
 from translator_api.temporal_client import get_temporal_client
+from translator_api.security.identity import UserIdentity
+from translator_api.security.rbac import Role, require_project_role
 from translator_shared.providers import StorageProviderId
 from translator_shared.workflows import QualityMode, WorkflowStatus
 
 bootstrap()
 
 router = APIRouter()
+
+
+from translator_api.auth_dependency import get_identity
 
 
 @router.get("/healthz", response_model=HealthResponse, tags=["meta"])
@@ -70,11 +76,15 @@ async def list_projects(db: Session = Depends(get_db)) -> ProjectListResponse:
 
 
 @router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED, tags=["projects"])
-async def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> ProjectResponse:
+async def create_project(
+    payload: ProjectCreate,
+    identity: UserIdentity = Depends(get_identity),
+    db: Session = Depends(get_db),
+) -> ProjectResponse:
     repo = ProjectRepository(db)
     project = Project(
         title=payload.title,
-        owner_id=UUID(int=0),
+        owner_id=UUID(identity.user_id),
         source_language=payload.source_language,
         target_language=payload.target_language,
         quality_mode=payload.quality_mode.value,
@@ -82,6 +92,13 @@ async def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) 
         status=WorkflowStatus.DRAFT.value,
     )
     repo.add(project)
+    db.flush()  # Ensure project.id is populated for audit log FK references.
+    db.add(AuditLog(
+        entity_type="project",
+        entity_id=str(project.id),
+        action="create",
+        payload={"actor": identity.email, "title": payload.title},
+    ))
     db.commit()
     db.refresh(project)
     return ProjectResponse(
@@ -112,11 +129,29 @@ async def get_project(project_id: UUID, db: Session = Depends(get_db)) -> Projec
     response_model=AssetPresignResponse,
     tags=["assets"],
 )
-async def presign_asset(project_id: UUID, payload: AssetPresignRequest) -> AssetPresignResponse:
+async def presign_asset(
+    project_id: UUID,
+    payload: AssetPresignRequest,
+    identity: UserIdentity = Depends(get_identity),
+    db: Session = Depends(get_db),
+) -> AssetPresignResponse:
+    require_project_role(project_id, Role.EDITOR, db=db, identity=identity)
     settings = get_settings()
     storage = LocalStorage() if StorageProviderId(settings.storage_provider_id) == StorageProviderId.LOCAL_FS else S3CompatibleStorage()
-    asset_id = UUID(int=0)
-    key = f"projects/{project_id}/assets/{asset_id}/raw/{payload.filename}"
+    asset = Asset(
+        project_id=project_id,
+        kind="video",
+        storage_key="",
+        mime=payload.mime,
+        size=payload.size,
+        uploaded_by=UUID(identity.user_id),
+    )
+    AssetRepository(db).add(asset)
+    db.commit()
+    db.refresh(asset)
+    key = f"projects/{project_id}/assets/{asset.id}/raw/{payload.filename}"
+    asset.storage_key = key
+    db.commit()
     return AssetPresignResponse(**storage.presign_put(key, mime=payload.mime, expires_in=3600))
 
 
@@ -125,10 +160,16 @@ async def presign_asset(project_id: UUID, payload: AssetPresignRequest) -> Asset
     response_model=WorkflowTriggerResponse,
     tags=["workflows"],
 )
-async def trigger_workflow(project_id: UUID, payload: WorkflowTriggerRequest, db: Session = Depends(get_db)) -> WorkflowTriggerResponse:
+async def trigger_workflow(
+    project_id: UUID,
+    payload: WorkflowTriggerRequest,
+    identity: UserIdentity = Depends(get_identity),
+    db: Session = Depends(get_db),
+) -> WorkflowTriggerResponse:
     project = ProjectRepository(db).get(project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="project not found")
+    require_project_role(project_id, Role.EDITOR, db=db, identity=identity)
 
     client = await get_temporal_client()
     workflow_id = f"project-{project_id}"
@@ -148,6 +189,17 @@ async def trigger_workflow(project_id: UUID, payload: WorkflowTriggerRequest, db
         status=WorkflowStatus.PROCESSING.value,
     )
     WorkflowRepository(db).add(workflow)
+    db.flush()
+    db.add(AuditLog(
+        entity_type="workflow",
+        entity_id=str(workflow.id),
+        action="trigger",
+        payload={
+            "actor": identity.email,
+            "project_id": str(project_id),
+            "quality_mode": quality_mode,
+        },
+    ))
     db.commit()
     return WorkflowTriggerResponse(workflow_id=handle.id, run_id=handle.result_run_id)
 
@@ -201,41 +253,11 @@ async def list_workflow_steps(project_id: UUID, workflow_id: str, db: Session = 
 async def upsert_provider_config(
     project_id: UUID,
     payload: ProviderConfigUpsert,
+    identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ) -> ProviderConfigResponse:
-    repo = ProviderConfigRepository(db)
-    config = repo.add(_build_provider_config_row(project_id, payload))
-    db.commit()
-    db.refresh(config)
-    return _provider_config_response(config)
-
-
-@router.get(
-    "/projects/{project_id}/provider-configs",
-    response_model=list[ProviderConfigResponse],
-    tags=["providers"],
-)
-async def list_provider_configs(
-    project_id: UUID,
-    kind: str | None = None,
-    db: Session = Depends(get_db),
-) -> list[ProviderConfigResponse]:
-    from sqlalchemy import select
-
-    from translator_api.models import ProviderConfig
-
-    stmt = select(ProviderConfig).where(
-        (ProviderConfig.project_id == project_id) | (ProviderConfig.project_id.is_(None))
-    )
-    if kind:
-        stmt = stmt.where(ProviderConfig.provider_kind == kind)
-    rows = db.execute(stmt).scalars().all()
-    return [_provider_config_response(row) for row in rows]
-
-
-def _build_provider_config_row(project_id: UUID, payload: ProviderConfigUpsert):
-    from translator_api.models import ProviderConfig
-
+    require_project_role(project_id, Role.EDITOR, db=db, identity=identity)
+    # Validate language pair constraints for translation providers before persisting.
     if payload.provider_kind == TRANSLATE:
         src = payload.config.get("source_language") if payload.config else None
         tgt = payload.config.get("target_language") if payload.config else None
@@ -249,13 +271,47 @@ def _build_provider_config_row(project_id: UUID, payload: ProviderConfigUpsert):
                     detail=f"provider {payload.provider_id} not allowed for {src}->{tgt}; allowed={sorted(allowed)}",
                 )
 
-    return ProviderConfig(
+    repo = ProviderConfigRepository(db)
+    config = repo.upsert(
         project_id=project_id,
         provider_kind=payload.provider_kind,
         provider_id=payload.provider_id,
         config=payload.config,
         is_active=payload.is_active,
     )
+    db.add(AuditLog(
+        entity_type="provider_config",
+        entity_id=str(config.id),
+        action="upsert",
+        payload={
+            "actor": identity.email,
+            "project_id": str(project_id),
+            "provider_kind": payload.provider_kind,
+            "provider_id": payload.provider_id,
+        },
+    ))
+    db.commit()
+    db.refresh(config)
+    return _provider_config_response(config)
+
+
+@router.get(
+    "/projects/{project_id}/provider-configs",
+    response_model=list[ProviderConfigResponse],
+    tags=["providers"],
+)
+async def list_provider_configs(
+    project_id: UUID,
+    kind: str | None = None,
+    identity: UserIdentity = Depends(get_identity),
+    db: Session = Depends(get_db),
+) -> list[ProviderConfigResponse]:
+    require_project_role(project_id, Role.VIEWER, db=db, identity=identity)
+    repo = ProviderConfigRepository(db)
+    rows = repo.list_for_project(project_id)
+    if kind:
+        rows = [r for r in rows if r.provider_kind == kind]
+    return [_provider_config_response(row) for row in rows]
 
 
 def _provider_config_response(row) -> ProviderConfigResponse:

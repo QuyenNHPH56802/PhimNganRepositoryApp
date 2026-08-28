@@ -18,10 +18,11 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("DROP SCHEMA public CASCADE")
-    op.execute("CREATE SCHEMA public")
-    op.execute("GRANT ALL ON SCHEMA public TO current_user")
-    op.execute("GRANT ALL ON SCHEMA public TO public")
+    # 0002 originally dropped and recreated the public schema, which also
+    # removed alembic_version and made follow-up migrations fail. The schema
+    # produced by 0003_phase2_create_schema is the authoritative baseline, so
+    # 0002 is now a no-op marker.
+    pass
 
 
 def downgrade() -> None:

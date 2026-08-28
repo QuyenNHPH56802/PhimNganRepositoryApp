@@ -17,6 +17,7 @@ class VoiceProfile(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     project_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    speaker_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("speakers.id", ondelete="SET NULL"))
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     provider_id: Mapped[str] = mapped_column(String(64), nullable=False)
     model_id: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -24,9 +25,11 @@ class VoiceProfile(Base):
     default_accent: Mapped[str | None] = mapped_column(String(32))
     reference_audio_key: Mapped[str | None] = mapped_column(String(1024))
     reference_audio_hash: Mapped[str | None] = mapped_column(String(64))
+    embedding_storage_key: Mapped[str | None] = mapped_column(String(1024))
     consent_status: Mapped[str] = mapped_column(String(32), nullable=False)
     consent_evidence_key: Mapped[str | None] = mapped_column(String(1024))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class TtsSegment(Base):

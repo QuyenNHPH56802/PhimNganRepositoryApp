@@ -12,11 +12,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from translator_api.routers import router
+from translator_api.routers_editor import router as editor_router
 from translator_api.routers_governance import router as governance_router
 from translator_api.routers_admin import router as admin_router
 from translator_api.routers_admin_voice import router as admin_voice_router
 from translator_api.routers_admin_dataset import router as admin_dataset_router
 from translator_api.routers_stream import router as stream_router
+from translator_api.routers_capabilities import router as capabilities_router
 from translator_api.observability import configure_logging, install_fastapi, setup_telemetry
 from translator_api.middleware import install as install_shedder
 
@@ -26,22 +28,31 @@ logger = logging.getLogger(__name__)
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Translator API", version="0.1.0")
-    setup_telemetry(app)
-    install_fastapi(app)
-    install_shedder(app)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000"],
+        allow_origins=[
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3001",
+        ],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["*"],
+        max_age=600,
     )
+    setup_telemetry(app)
+    install_fastapi(app)
+    install_shedder(app)
     app.include_router(router)
+    app.include_router(editor_router)
     app.include_router(governance_router)
     app.include_router(admin_router)
     app.include_router(admin_voice_router)
     app.include_router(admin_dataset_router)
     app.include_router(stream_router)
+    app.include_router(capabilities_router)
 
     @app.get("/projects/{project_id}/events", tags=["events"])
     async def stream_events(project_id: str) -> StreamingResponse:

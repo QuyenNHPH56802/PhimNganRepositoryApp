@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { api, ApiError } from "@/lib/api";
+
 type ProviderConfig = {
   id: string;
   provider_kind: string;
@@ -44,28 +46,47 @@ const defaults: Record<string, { provider_id: string; config: Record<string, unk
 export default function SettingsPage() {
   const [configs, setConfigs] = useState<ProviderConfig[]>([]);
   const [message, setMessage] = useState<string | null>(null);
-  const [ttsSelection, setTtsSelection] = useState<string>(defaults.tts.provider_id);
+  const [ttsSelection, setTtsSelection] = useState<string>(defaults.tts!.provider_id);
+  const [projectId, setProjectId] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const list = await api.listProjects();
+        if (list.items.length > 0) {
+          setProjectId(list.items[0]!.id);
+        }
+      } catch {
+        // user not logged in — fall back to read-only state
+      }
+    })();
+  }, []);
 
   async function load() {
-    const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-    const res = await fetch(`${base}/projects/00000000-0000-0000-0000-000000000000/provider-configs`);
-    if (res.ok) {
-      const data = (await res.json()) as ProviderConfig[];
+    if (!projectId) return;
+    try {
+      const data = await api.listProviderConfigs(projectId);
       setConfigs(data);
       const activeTts = data.find((c) => c.provider_kind === "tts" && c.is_active);
       if (activeTts) {
         setTtsSelection(activeTts.provider_id);
       }
+    } catch (exc) {
+      if (exc instanceof ApiError) {
+        setMessage(`Lỗi tải provider config: ${exc.status}`);
+      }
     }
   }
 
   useEffect(() => {
-    load();
-  }, []);
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
   async function save(kind: string, overrideProviderId?: string) {
-    const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+    if (!projectId) return;
     const fallback = defaults[kind];
+    if (!fallback) return;
     const providerId = overrideProviderId ?? fallback.provider_id;
     const body = {
       provider_kind: kind,
@@ -73,16 +94,12 @@ export default function SettingsPage() {
       config: fallback.config,
       is_active: true,
     };
-    const res = await fetch(`${base}/projects/00000000-0000-0000-0000-000000000000/provider-configs`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.ok) {
+    try {
+      await api.upsertProviderConfig(projectId, body);
       setMessage(`Đã lưu provider cho ${kind}`);
-      load();
-    } else {
-      setMessage(`Lỗi ${res.status}`);
+      await load();
+    } catch (exc) {
+      setMessage(exc instanceof ApiError ? `Lỗi ${exc.status}` : String(exc));
     }
   }
 
@@ -145,7 +162,7 @@ export default function SettingsPage() {
       <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
         {kinds.map((kind) => {
           if (kind.key === "tts") {
-            return renderTtsSelector();
+            return <div key="tts-special">{renderTtsSelector()}</div>;
           }
           const cfg = configFor(kind.key);
           return (

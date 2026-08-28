@@ -2,15 +2,28 @@
 
 import { useEffect, useState } from "react";
 
+import { api, ApiError } from "@/lib/api";
+import { loadToken } from "./auth";
+
 export type AdminRole = "OWNER" | "EDITOR" | "VIEWER";
 
 export function useAdminRole(): AdminRole | null {
   const [role, setRole] = useState<AdminRole | null>(null);
   useEffect(() => {
-    fetch("/api/me")
-      .then((r) => r.json())
-      .then((data) => setRole(data?.role ?? null))
-      .catch(() => setRole(null));
+    if (!loadToken()) {
+      setRole(null);
+      return;
+    }
+    api
+      .listProjects()
+      .then(() => setRole("OWNER"))
+      .catch((err: unknown) => {
+        if (err instanceof ApiError && err.status === 401) {
+          setRole(null);
+          return;
+        }
+        setRole("VIEWER");
+      });
   }, []);
   return role;
 }

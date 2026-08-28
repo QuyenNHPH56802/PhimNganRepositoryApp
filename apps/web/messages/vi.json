@@ -5,7 +5,35 @@
     "loading": "Đang tải…",
     "forbidden": "403 — không có quyền",
     "yes": "Có",
-    "no": "Không"
+    "no": "Không",
+    "back": "Quay lại",
+    "delete": "Xoá",
+    "edit": "Sửa",
+    "rename": "Đổi tên",
+    "retry": "Thử lại",
+    "open": "Mở",
+    "close": "Đóng"
+  },
+  "app": {
+    "title": "China → VNE",
+    "subtitle": "Bản địa hoá video",
+    "language": "Ngôn ngữ"
+  },
+  "nav": {
+    "dashboard": "Bảng điều khiển",
+    "projects": "Dự án",
+    "voices": "Giọng nói",
+    "settings": "Cài đặt",
+    "admin": "Quản trị",
+    "newProject": "+ Dự án mới"
+  },
+  "auth": {
+    "signIn": "Đăng nhập",
+    "signOut": "Đăng xuất",
+    "loginTitle": "Đăng nhập vào Translator",
+    "email": "Email",
+    "loginButton": "Đăng nhập",
+    "loginHint": "Bản development: dùng bất kỳ email nào — token được tạo tự động"
   },
   "admin": {
     "audit": "Nhật ký",
@@ -15,24 +43,37 @@
   "qualityMode": {
     "fast": "NHANH",
     "balanced": "CÂN BẰNG",
-    "high": "CAO"
+    "high": "CAO",
+    "description": {
+      "fast": "Chỉ phụ đề, không lồng tiếng. Nhanh nhất.",
+      "balanced": "Phụ đề + lồng tiếng Edge TTS. Cân bằng tốc độ/chất lượng.",
+      "high": "Lồng tiếng chất lượng cao, có tách nhạc nền. Chậm nhất."
+    }
   },
   "errors": {
     "language_pair_unsupported": "Cặp ngôn ngữ chưa được hỗ trợ",
     "consent_required": "Yêu cầu consent của speaker",
-    "consent_revoked": "Consent đã bị thu hồi"
+    "consent_revoked": "Consent đã bị thu hồi",
+    "networkError": "Không kết nối được backend",
+    "checkApiUrl": "Kiểm tra API_BASE_URL và FastAPI server",
+    "uploadFailed": "Tải lên thất bại",
+    "workflowFailed": "Workflow thất bại"
   },
   "commands": {
     "run": "Chạy",
     "stop": "Dừng",
     "upload": "Tải lên",
-    "download": "Tải về"
+    "download": "Tải về",
+    "trigger": "Chạy workflow",
+    "cancel": "Huỷ workflow"
   },
   "status": {
     "queued": "Đang chờ",
     "processing": "Đang xử lý",
     "ready": "Sẵn sàng",
-    "failed": "Lỗi"
+    "failed": "Lỗi",
+    "draft": "Bản nháp",
+    "succeeded": "Thành công"
   },
   "tts": {
     "providers": {
@@ -45,5 +86,38 @@
         "description": "Alibaba Qwen3, đa ngôn ngữ, cần GPU cho local"
       }
     }
+  },
+  "project": {
+    "create": "Tạo dự án",
+    "title": "Tiêu đề",
+    "titlePlaceholder": "Tên video hoặc mô tả",
+    "sourceLanguage": "Ngôn ngữ nguồn",
+    "targetLanguage": "Ngôn ngữ đích",
+    "qualityMode": "Chế độ chất lượng",
+    "createButton": "Tạo dự án",
+    "creating": "Đang tạo…",
+    "dropVideo": "Kéo thả video vào đây, hoặc bấm để chọn",
+    "videoHint": "Hỗ trợ MP4, MOV, MKV. Tối đa 2GB.",
+    "uploadedTo": "Đã tải lên MinIO",
+    "noProjects": "Chưa có dự án nào",
+    "openWorkspace": "Mở workspace"
+  },
+  "workspace": {
+    "title": "Workspace",
+    "tabs": {
+      "transcript": "Bản ghi",
+      "translation": "Dịch",
+      "speaker": "Speaker",
+      "voice": "Giọng",
+      "tts": "TTS",
+      "subtitle": "Phụ đề",
+      "audio": "Âm thanh",
+      "render": "Render"
+    },
+    "noData": "Chưa có dữ liệu. Hãy upload video và chạy workflow.",
+    "triggerWorkflow": "Chạy Project Workflow",
+    "workflowRunning": "Workflow đang chạy…",
+    "workflowDone": "Workflow hoàn tất",
+    "workflowFailed": "Workflow thất bại"
   }
 }

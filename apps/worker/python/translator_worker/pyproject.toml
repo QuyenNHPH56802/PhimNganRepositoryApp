@@ -1,0 +1,17 @@
+[project]
+name = "translator-worker"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "temporalio>=1.7.0",
+    "translator-shared",
+    "translator-api",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["translator_worker*"]
