@@ -8,9 +8,10 @@ import type {
   VoiceProfile,
   SubtitleSegment,
   AudioSegment,
+  Panel,
 } from "./types";
 
-export type Panel = "transcript" | "translation" | "speaker" | "voice" | "subtitle" | "audio" | "render";
+export type { Panel };
 
 interface HistorySnapshot {
   translation: TranslationSegment[];

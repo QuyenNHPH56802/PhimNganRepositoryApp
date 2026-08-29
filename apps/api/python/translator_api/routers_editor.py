@@ -110,7 +110,7 @@ def _latest_asset(project_id: UUID, db: Session) -> Asset | None:
     return (
         db.query(Asset)
         .filter_by(project_id=project_id)
-        .order_by(Asset.created_at.desc())
+        .order_by(Asset.uploaded_at.desc())
         .first()
     )
 

@@ -122,3 +122,12 @@ export interface AudioSegment {
   audio_key: string;
   duration_ms: number;
 }
+
+export type Panel =
+  | "transcript"
+  | "translation"
+  | "speaker"
+  | "voice"
+  | "subtitle"
+  | "audio"
+  | "render";

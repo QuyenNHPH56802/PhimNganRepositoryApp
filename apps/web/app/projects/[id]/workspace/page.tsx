@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
-import { useEditor, type Panel } from "@/lib/store";
+import { useEditor } from "@/lib/store";
+import type { Panel } from "@/lib/types";
 import { api, ApiError } from "@/lib/api";
 import { Button, Card, Input } from "@/components/ui";
 import { VideoPlayer } from "@/components/VideoPlayer";
