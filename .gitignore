@@ -51,3 +51,5 @@ logs/
 # Next.js build cache
 .next/
 out/
+*.tsbuildinfo
+test-results/

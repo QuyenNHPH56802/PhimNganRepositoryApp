@@ -4,15 +4,9 @@ import { useEffect, useState } from "react";
 
 import { api, ApiError } from "@/lib/api";
 import { Button, Card } from "@/components/ui";
+import { theme } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
-
-interface VoiceProfile {
-  id: string;
-  speaker_id: string;
-  display_name: string;
-  consent_status: string;
-  reference_audio_key: string | null;
-}
+import type { VoiceProfile } from "@/lib/types";
 
 export default function VoicePage() {
   const { t } = useT();
@@ -39,30 +33,33 @@ export default function VoicePage() {
 
   return (
     <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
-      <header>
-        <h1 style={{ margin: 0, fontSize: 22 }}>{t("voice.title", "Voice consent")}</h1>
-        <p style={{ margin: "6px 0 0", color: "#94a3b8", fontSize: 13 }}>
-          {t("voice.subtitle", "Quản lý giọng nói và consent của speaker.")}
-        </p>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 22 }}>Hồ sơ Giọng đọc & Đồng ý (Voice Consent)</h1>
+          <p style={{ margin: "6px 0 0", color: theme.textMuted, fontSize: 13 }}>
+            Quản lý danh sách giọng đọc tiếng Việt và xác nhận quyền sử dụng từ người nói.
+          </p>
+        </div>
+        <Button onClick={() => void load()}>{t("common.retry", "Tải lại danh sách")}</Button>
       </header>
 
-      <Card title={t("voice.profiles", "Hồ sơ giọng")} padded={false}>
-        {busy && <div style={{ padding: 16, color: "#94a3b8", fontSize: 13 }}>{t("common.loading", "Đang tải…")}</div>}
+      <Card title={t("voice.profiles", "Danh sách Giọng đọc trong hệ thống")} padded={false}>
+        {busy && <div style={{ padding: 16, color: theme.textMuted, fontSize: 13 }}>{t("common.loading", "Đang tải…")}</div>}
         {error && (
-          <div style={{ padding: 16, color: "#f87171", fontSize: 13 }}>
-            {error}
+          <div style={{ padding: 16, color: theme.danger, fontSize: 13 }}>
+            Lỗi: {error}
           </div>
         )}
         {!busy && !error && items.length === 0 && (
-          <div style={{ padding: 24, color: "#94a3b8", fontSize: 13, textAlign: "center" }}>
-            {t("voice.empty", "Chưa có voice profile nào. Tạo project và chạy workflow trước.")}
+          <div style={{ padding: 28, color: theme.textMuted, fontSize: 13, textAlign: "center" }}>
+            Chưa có voice profile nào trong hệ thống. Tạo dự án và chạy workflow để tạo giọng đọc tự động.
           </div>
         )}
         {items.length > 0 && (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#0d172e" }}>
-                {[t("voice.colSpeaker", "Speaker"), t("voice.colStatus", "Trạng thái"), t("voice.colReference", "Reference audio")].map((h) => (
+                {["Tên Người nói / Voice", "Provider & Model", "Trạng thái Consent"].map((h) => (
                   <th
                     key={h}
                     style={{
@@ -70,10 +67,10 @@ export default function VoicePage() {
                       padding: "10px 14px",
                       fontSize: 11,
                       fontWeight: 600,
-                      color: "#94a3b8",
+                      color: theme.textMuted,
                       textTransform: "uppercase",
                       letterSpacing: 0.5,
-                      borderBottom: "1px solid #1f2a44",
+                      borderBottom: `1px solid ${theme.border}`,
                     }}
                   >
                     {h}
@@ -83,11 +80,13 @@ export default function VoicePage() {
             </thead>
             <tbody>
               {items.map((p) => (
-                <tr key={p.id} style={{ borderBottom: "1px solid #1f2a44" }}>
-                  <td style={{ padding: "10px 14px" }}>{p.display_name || p.speaker_id}</td>
-                  <td style={{ padding: "10px 14px" }}>{p.consent_status}</td>
-                  <td style={{ padding: "10px 14px", color: "#94a3b8", fontSize: 12 }}>
-                    {p.reference_audio_key ?? "—"}
+                <tr key={p.id} style={{ borderBottom: `1px solid ${theme.border}` }}>
+                  <td style={{ padding: "10px 14px", fontWeight: 600 }}>{p.name || p.speaker_id || p.id.slice(0, 8)}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: theme.textMuted }}>{p.provider_id} • {p.model_id}</td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <span style={{ color: p.consent_status === "granted" ? theme.success : theme.warn }}>
+                      {p.consent_status}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -95,10 +94,6 @@ export default function VoicePage() {
           </table>
         )}
       </Card>
-
-      <Button variant="secondary" onClick={() => void load()}>
-        {t("common.retry", "Tải lại")}
-      </Button>
     </div>
   );
 }

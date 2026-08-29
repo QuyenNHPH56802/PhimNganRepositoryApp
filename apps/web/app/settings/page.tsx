@@ -1,37 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
 import { api, ApiError } from "@/lib/api";
-
-type ProviderConfig = {
-  id: string;
-  provider_kind: string;
-  provider_id: string;
-  config: Record<string, unknown>;
-  is_active: boolean;
-};
+import { Button, Card } from "@/components/ui";
+import { theme } from "@/lib/theme";
+import type { ProviderConfig } from "@/lib/types";
 
 const kinds = [
-  { key: "translate", label: "Translation" },
-  { key: "qa", label: "Translation QA" },
-  { key: "subtitle", label: "Subtitle" },
-  { key: "tts", label: "TTS" },
-  { key: "audio_separation", label: "Audio separation" },
-  { key: "render", label: "Render" },
+  { key: "translate", label: "Dịch thuật (Translation LLM)" },
+  { key: "qa", label: "Kiểm định chất lượng (QA Rule Engine)" },
+  { key: "subtitle", label: "Phụ đề (Subtitle Generator)" },
+  { key: "tts", label: "Tổng hợp giọng nói (TTS Service)" },
+  { key: "audio_separation", label: "Tách nhạc nền (Audio Separation)" },
+  { key: "render", label: "Xuất video (FFmpeg Render)" },
 ];
 
 const ttsProviders = [
-  { id: "edge_tts", label: "Edge TTS (free)", description: "Microsoft Edge neural voices, no API key required" },
-  { id: "dashscope_tts", label: "DashScope Qwen3 (cloud)", description: "Alibaba Qwen3, multilingual, no GPU required" },
-  { id: "qwen3_tts", label: "Qwen3 TTS (local)", description: "Alibaba Qwen3, multilingual, requires GPU for local deployment" },
-  { id: "vietvoice_tts", label: "VietVoice TTS", description: "Vietnamese-only local model; GPU recommended" },
-  { id: "vieneu_v3_turbo", label: "VieNeu TTS", description: "Vietnamese voice-clone capable; GPU recommended" },
-  { id: "cosyvoice_3", label: "CosyVoice 3", description: "Multilingual voice-clone capable; GPU required" },
-  { id: "cloud_azure", label: "Azure TTS", description: "Commercial neural TTS (AZURE_TTS_KEY)" },
-  { id: "cloud_google", label: "Google Cloud TTS", description: "Commercial neural TTS (GOOGLE_TTS_KEY)" },
-  { id: "cloud_elevenlabs", label: "ElevenLabs", description: "Commercial neural TTS with voice cloning (ELEVENLABS_API_KEY)" },
-  { id: "melotts_vi", label: "MeloTTS (VI)", description: "Lightweight Vietnamese local model" },
+  { id: "edge_tts", label: "Microsoft Edge TTS (Miễn phí)", description: "Giọng đọc Microsoft Edge Neural, nhanh, miễn phí" },
+  { id: "dashscope_tts", label: "Alibaba DashScope Qwen3 (Cloud)", description: "Alibaba Qwen3, tự nhiên, đa ngôn ngữ" },
+  { id: "qwen3_tts", label: "Qwen3 TTS (Local)", description: "Alibaba Qwen3 tự host, cần GPU" },
+  { id: "vietvoice_tts", label: "VietVoice TTS", description: "Mô hình chuyên tiếng Việt" },
+  { id: "vieneu_v3_turbo", label: "VieNeu TTS", description: "Hỗ trợ nhân bản giọng tiếng Việt" },
+  { id: "cosyvoice_3", label: "CosyVoice 3", description: "Hỗ trợ voice-clone đa ngôn ngữ" },
+  { id: "cloud_azure", label: "Azure TTS", description: "Dịch vụ thương mại Microsoft Azure" },
+  { id: "cloud_google", label: "Google Cloud TTS", description: "Dịch vụ thương mại Google Cloud" },
+  { id: "cloud_elevenlabs", label: "ElevenLabs", description: "Voice cloning thương mại cao cấp" },
+  { id: "melotts_vi", label: "MeloTTS (VI)", description: "Mô hình siêu nhẹ cho tiếng Việt" },
 ];
 
 const defaults: Record<string, { provider_id: string; config: Record<string, unknown> }> = {
@@ -53,8 +47,8 @@ export default function SettingsPage() {
     void (async () => {
       try {
         const list = await api.listProjects();
-        if (list.items.length > 0) {
-          setProjectId(list.items[0]!.id);
+        if (list && list.length > 0 && list[0]) {
+          setProjectId(list[0].id);
         }
       } catch {
         // user not logged in — fall back to read-only state
@@ -80,7 +74,6 @@ export default function SettingsPage() {
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   async function save(kind: string, overrideProviderId?: string) {
@@ -96,7 +89,7 @@ export default function SettingsPage() {
     };
     try {
       await api.upsertProviderConfig(projectId, body);
-      setMessage(`Đã lưu provider cho ${kind}`);
+      setMessage(`Đã lưu cấu hình provider cho ${kind}`);
       await load();
     } catch (exc) {
       setMessage(exc instanceof ApiError ? `Lỗi ${exc.status}` : String(exc));
@@ -109,31 +102,29 @@ export default function SettingsPage() {
 
   function renderTtsSelector() {
     return (
-      <div style={{ padding: 12, background: "#1e293b", borderRadius: 8 }}>
+      <Card title="Tổng hợp Giọng nói (TTS Provider Engine)">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <strong>TTS</strong>
-          <button
-            onClick={() => save("tts", ttsSelection)}
-            style={{ background: "#0ea5e9", color: "#0f172a", border: 0, padding: "6px 12px", cursor: "pointer" }}
-          >
-            {configFor("tts") ? "Update" : "Save"}
-          </button>
+          <strong style={{ fontSize: 14 }}>Chọn Engine Giọng đọc mặc định</strong>
+          <Button variant="primary" size="sm" onClick={() => save("tts", ttsSelection)}>
+            {configFor("tts") ? "Cập nhật Engine" : "Lưu cấu hình"}
+          </Button>
         </div>
-        <label htmlFor="tts-provider-select" style={{ display: "block", marginTop: 8, color: "#cbd5f5", fontSize: 12 }}>
-          Provider:
+        <label htmlFor="tts-provider-select" style={{ display: "block", marginTop: 12, color: theme.textMuted, fontSize: 12 }}>
+          Provider TTS đang chọn:
         </label>
         <select
           id="tts-provider-select"
           value={ttsSelection}
           onChange={(e) => setTtsSelection(e.target.value)}
           style={{
-            marginTop: 4,
+            marginTop: 6,
             width: "100%",
-            padding: "8px",
-            background: "#0f172a",
-            color: "#f1f5f9",
-            border: "1px solid #334155",
-            borderRadius: 4,
+            padding: "10px",
+            background: theme.bgElevated,
+            color: theme.text,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 6,
+            fontSize: 13,
           }}
         >
           {ttsProviders.map((p) => (
@@ -142,48 +133,42 @@ export default function SettingsPage() {
             </option>
           ))}
         </select>
-        <p style={{ marginTop: 6, color: "#94a3b8", fontSize: 12 }}>
-          {ttsProviders.find((p) => p.id === ttsSelection)?.description}
+        <p style={{ marginTop: 8, color: theme.accent, fontSize: 12 }}>
+          💡 {ttsProviders.find((p) => p.id === ttsSelection)?.description}
         </p>
-        <pre style={{ marginTop: 8, padding: 8, background: "#0f172a", color: "#cbd5f5", fontSize: 12, overflow: "auto" }}>
-          {(() => {
-            const cfg = configFor("tts");
-            return cfg ? JSON.stringify(cfg, null, 2) : "Not configured";
-          })()}
-        </pre>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <section style={{ maxWidth: 720 }}>
-      <h1 style={{ fontSize: 24, marginBottom: 16 }}>Provider Settings</h1>
-      <p style={{ color: "#94a3b8" }}>Phase 3: lưu config vào API. Real workflow sẽ dùng config này cho từng project.</p>
-      <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
+    <div style={{ padding: 24, maxWidth: 780, display: "flex", flexDirection: "column", gap: 16 }}>
+      <header>
+        <h1 style={{ margin: 0, fontSize: 22 }}>Cài Đặt Cấu Hình Máy Chủ & Model AI</h1>
+        <p style={{ color: theme.textMuted, fontSize: 13, margin: "4px 0 0" }}>
+          Cấu hình các provider AI (ASR, Dịch thuật LLM, TTS, Render) áp dụng cho dự án.
+        </p>
+      </header>
+      <div style={{ display: "grid", gap: 16 }}>
         {kinds.map((kind) => {
           if (kind.key === "tts") {
             return <div key="tts-special">{renderTtsSelector()}</div>;
           }
           const cfg = configFor(kind.key);
           return (
-            <div key={kind.key} style={{ padding: 12, background: "#1e293b", borderRadius: 8 }}>
+            <Card key={kind.key} title={kind.label}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <strong>{kind.label}</strong>
-                <button
-                  onClick={() => save(kind.key)}
-                  style={{ background: "#0ea5e9", color: "#0f172a", border: 0, padding: "6px 12px", cursor: "pointer" }}
-                >
-                  {cfg ? "Update" : "Save"}
-                </button>
+                <span style={{ fontSize: 12, color: theme.textMuted }}>
+                  Provider hiện tại: <strong style={{ color: theme.text }}>{cfg ? cfg.provider_id : defaults[kind.key]?.provider_id}</strong>
+                </span>
+                <Button size="sm" onClick={() => save(kind.key)}>
+                  {cfg ? "Cập nhật" : "Lưu mặc định"}
+                </Button>
               </div>
-              <pre style={{ marginTop: 8, padding: 8, background: "#0f172a", color: "#cbd5f5", fontSize: 12, overflow: "auto" }}>
-                {cfg ? JSON.stringify(cfg, null, 2) : "Not configured"}
-              </pre>
-            </div>
+            </Card>
           );
         })}
       </div>
-      {message && <p style={{ color: "#7dd3fc", marginTop: 16 }}>{message}</p>}
-    </section>
+      {message && <div style={{ color: theme.success, background: "#052e16", padding: 10, borderRadius: 6, fontSize: 13 }}>{message}</div>}
+    </div>
   );
 }

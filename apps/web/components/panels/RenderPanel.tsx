@@ -7,16 +7,16 @@ import { Badge, Button, Card, Select, StatusDot } from "@/components/ui";
 import { theme } from "@/lib/theme";
 
 const STAGES = [
-  { id: "analyze", label: "Analyze" },
-  { id: "asr", label: "ASR" },
-  { id: "diarize", label: "Diarization" },
-  { id: "translate", label: "Translation" },
-  { id: "qa", label: "QA" },
-  { id: "voice", label: "Voice Assignment" },
-  { id: "tts", label: "TTS" },
-  { id: "subtitle", label: "Subtitle" },
-  { id: "mix", label: "Audio Mix" },
-  { id: "render", label: "Render" },
+  { id: "analyze", label: "1. Phân tích Video & Cấu trúc âm thanh" },
+  { id: "asr", label: "2. Nhận dạng giọng nói tiếng Trung (ASR)" },
+  { id: "diarize", label: "3. Phân biệt người nói (Speaker Diarization)" },
+  { id: "translate", label: "4. Dịch thuật tiếng Trung → Việt (AI Translation)" },
+  { id: "qa", label: "5. Kiểm định chất lượng & Glossary (QA Check)" },
+  { id: "voice", label: "6. Phân vai & Gán giọng đọc (Voice Assignment)" },
+  { id: "tts", label: "7. Tổng hợp giọng nói tiếng Việt (TTS Synthesis)" },
+  { id: "subtitle", label: "8. Tạo & Căn chỉnh phụ đề (Subtitle Generation)" },
+  { id: "mix", label: "9. Tách nhạc nền & Trộn âm thanh (Audio Mixing)" },
+  { id: "render", label: "10. Render & Xuất bản Video hoàn chỉnh" },
 ];
 
 export function RenderPanel() {
@@ -45,7 +45,7 @@ export function RenderPanel() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <Card title="Pipeline stages">
+      <Card title="Các bước trong Quy trình Xử lý (Pipeline)">
         <ol style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 6 }}>
           {STAGES.map((s, i) => (
             <li
@@ -54,7 +54,7 @@ export function RenderPanel() {
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
-                padding: "8px 10px",
+                padding: "8px 12px",
                 background: theme.bgElevated,
                 borderRadius: 6,
                 border: `1px solid ${theme.border}`,
@@ -70,82 +70,99 @@ export function RenderPanel() {
                   placeItems: "center",
                   fontSize: 11,
                   fontWeight: 700,
+                  color: theme.accent,
                 }}
               >
                 {i + 1}
               </span>
               <span style={{ fontSize: 13, fontWeight: 600 }}>{s.label}</span>
-              <span style={{ marginLeft: "auto" }}>
-                <StatusDot status="ready" /> ready
+              <span style={{ marginLeft: "auto", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <StatusDot status="ready" /> Sẵn sàng
               </span>
             </li>
           ))}
         </ol>
       </Card>
 
-      <Card title="Render settings">
+      <Card title="Cấu hình Render Video">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label="Resolution">
+          <Field label="Độ phân giải video">
             <Select value={resolution} onChange={(e) => setResolution(e.target.value)}>
-              <option value="720p">720p</option>
-              <option value="1080p">1080p</option>
-              <option value="4k">4K</option>
-              <option value="source">Theo video gốc</option>
+              <option value="720p">HD (720p)</option>
+              <option value="1080p">Full HD (1080p) — Khuyên dùng</option>
+              <option value="4k">4K Ultra HD (2160p)</option>
+              <option value="source">Giữ nguyên theo video gốc</option>
             </Select>
           </Field>
-          <Field label="Video codec">
+          <Field label="Chuẩn nén Video (Codec)">
             <Select value={codec} onChange={(e) => setCodec(e.target.value)}>
-              <option value="h264">H.264</option>
-              <option value="hevc">HEVC</option>
-              <option value="copy">Copy stream</option>
+              <option value="h264">H.264 / AVC (Tương thích tốt nhất)</option>
+              <option value="hevc">H.265 / HEVC (Dung lượng nhỏ hơn)</option>
+              <option value="copy">Copy Stream gốc (Nhanh nhất)</option>
             </Select>
           </Field>
-          <Field label="Audio mode">
+          <Field label="Chế độ âm thanh">
             <Select value={audioMode} onChange={(e) => setAudioMode(e.target.value)}>
-              <option value="dubbed">Lồng tiếng (dub)</option>
-              <option value="original">Giữ nguyên (sub-only)</option>
-              <option value="dual">Dual track</option>
+              <option value="dubbed">Lồng tiếng Việt + Trộn Nhạc nền gốc (Dubbing)</option>
+              <option value="original">Giữ tiếng gốc Trung + Phụ đề Việt (Sub-only)</option>
+              <option value="dual">Âm thanh kép (Dual Track Audio)</option>
             </Select>
           </Field>
-          <Field label="Burn subtitle">
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+          <Field label="Tùy chọn phụ đề">
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", marginTop: 4 }}>
               <input type="checkbox" checked={burnSubtitle} onChange={(e) => setBurnSubtitle(e.target.checked)} />
-              Nhúng subtitle vào video
+              <span>Nhúng phụ đề cứng (Hardsub) trực tiếp vào Video</span>
             </label>
           </Field>
         </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14, gap: 8 }}>
-          <Button>Save preset</Button>
-          <Button variant="primary" disabled={submitting || !projectId} onClick={onRender}>
-            {submitting ? "Đang khởi động…" : "Render Video"}
-          </Button>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16 }}>
+          <div style={{ fontSize: 12, color: theme.textMuted }}>
+            {result ? "✅ Tiến trình Render đã khởi tạo thành công" : "Sẵn sàng xuất bản video sau khi kiểm định"}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button variant="primary" disabled={submitting || !projectId} onClick={onRender}>
+              {submitting ? "⏳ Đang khởi tạo Render…" : "🎬 Bắt đầu Render Video"}
+            </Button>
+          </div>
         </div>
+
         {error && (
           <div
             style={{
-              marginTop: 10,
+              marginTop: 12,
               background: "#450a0a",
               color: theme.danger,
-              padding: 10,
+              padding: 12,
               borderRadius: 6,
               fontSize: 12,
+              border: "1px solid #7f1d1d",
             }}
           >
-            {error}
+            ❌ Lỗi khởi chạy: {error}
           </div>
         )}
         {result && (
           <div
             style={{
-              marginTop: 10,
+              marginTop: 12,
               background: "#052e16",
               color: theme.success,
-              padding: 10,
+              padding: 12,
               borderRadius: 6,
               fontSize: 12,
+              border: "1px solid #14532d",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
             }}
           >
-            Workflow started: {result}
+            <div>🚀 Workflow Render ID: <strong>{result}</strong></div>
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <Button size="sm" variant="ghost">📥 Tải Video MP4</Button>
+              <Button size="sm" variant="ghost">📄 Tải Phụ đề SRT</Button>
+              <Button size="sm" variant="ghost">📄 Tải Phụ đề VTT</Button>
+            </div>
           </div>
         )}
       </Card>
@@ -155,8 +172,8 @@ export function RenderPanel() {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <span style={{ fontSize: 11, color: theme.textMuted, fontWeight: 600 }}>{label}</span>
+    <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <span style={{ fontSize: 12, color: theme.textMuted, fontWeight: 600 }}>{label}</span>
       {children}
     </label>
   );
