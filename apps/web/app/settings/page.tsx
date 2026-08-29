@@ -2,9 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import { Button, Card } from "@/components/ui";
+import { Badge, Button, Card } from "@/components/ui";
 import { theme } from "@/lib/theme";
 import type { ProviderConfig } from "@/lib/types";
+
+type ModelItem = {
+  id: string;
+  name: string;
+  category: string;
+  type: "cloud" | "local";
+  size: string;
+  status: "installed" | "not_installed" | "installing";
+  progress: number;
+  description: string;
+};
 
 const kinds = [
   { key: "translate", label: "Dịch thuật (Translation LLM)" },
@@ -37,11 +48,15 @@ const defaults: Record<string, { provider_id: string; config: Record<string, unk
   render: { provider_id: "ffmpeg_render", config: { crf: 20, preset: "medium", subtitle_mode: "soft" } },
 };
 
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+
 export default function SettingsPage() {
   const [configs, setConfigs] = useState<ProviderConfig[]>([]);
+  const [models, setModels] = useState<ModelItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [ttsSelection, setTtsSelection] = useState<string>(defaults.tts!.provider_id);
   const [projectId, setProjectId] = useState<string | null>(null);
+  const [installingId, setInstallingId] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -51,12 +66,24 @@ export default function SettingsPage() {
           setProjectId(list[0].id);
         }
       } catch {
-        // user not logged in — fall back to read-only state
+        // user not logged in
       }
     })();
   }, []);
 
-  async function load() {
+  async function loadModels() {
+    try {
+      const res = await fetch(`${API_BASE}/models/status`);
+      if (res.ok) {
+        const data = await res.json();
+        setModels(data.models ?? []);
+      }
+    } catch {
+      // ignore offline error
+    }
+  }
+
+  async function loadConfigs() {
     if (!projectId) return;
     try {
       const data = await api.listProviderConfigs(projectId);
@@ -73,8 +100,33 @@ export default function SettingsPage() {
   }
 
   useEffect(() => {
-    void load();
+    void loadModels();
+    const interval = setInterval(loadModels, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    void loadConfigs();
   }, [projectId]);
+
+  async function installModel(modelId: string) {
+    setInstallingId(modelId);
+    try {
+      const res = await fetch(`${API_BASE}/models/install`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model_id: modelId }),
+      });
+      if (res.ok) {
+        setMessage(`🚀 Đã khởi chạy tiến trình tải & cài đặt mô hình ${modelId}`);
+        await loadModels();
+      }
+    } catch (err) {
+      setMessage(`❌ Lỗi cài đặt: ${String(err)}`);
+    } finally {
+      setInstallingId(null);
+    }
+  }
 
   async function save(kind: string, overrideProviderId?: string) {
     if (!projectId) return;
@@ -90,7 +142,7 @@ export default function SettingsPage() {
     try {
       await api.upsertProviderConfig(projectId, body);
       setMessage(`Đã lưu cấu hình provider cho ${kind}`);
-      await load();
+      await loadConfigs();
     } catch (exc) {
       setMessage(exc instanceof ApiError ? `Lỗi ${exc.status}` : String(exc));
     }
@@ -100,75 +152,116 @@ export default function SettingsPage() {
     return configs.find((c) => c.provider_kind === kind);
   }
 
-  function renderTtsSelector() {
-    return (
-      <Card title="Tổng hợp Giọng nói (TTS Provider Engine)">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <strong style={{ fontSize: 14 }}>Chọn Engine Giọng đọc mặc định</strong>
-          <Button variant="primary" size="sm" onClick={() => save("tts", ttsSelection)}>
-            {configFor("tts") ? "Cập nhật Engine" : "Lưu cấu hình"}
-          </Button>
-        </div>
-        <label htmlFor="tts-provider-select" style={{ display: "block", marginTop: 12, color: theme.textMuted, fontSize: 12 }}>
-          Provider TTS đang chọn:
-        </label>
-        <select
-          id="tts-provider-select"
-          value={ttsSelection}
-          onChange={(e) => setTtsSelection(e.target.value)}
-          style={{
-            marginTop: 6,
-            width: "100%",
-            padding: "10px",
-            background: theme.bgElevated,
-            color: theme.text,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 6,
-            fontSize: 13,
-          }}
-        >
-          {ttsProviders.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-        <p style={{ marginTop: 8, color: theme.accent, fontSize: 12 }}>
-          💡 {ttsProviders.find((p) => p.id === ttsSelection)?.description}
-        </p>
-      </Card>
-    );
-  }
-
   return (
-    <div style={{ padding: 24, maxWidth: 780, display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ padding: 24, maxWidth: 840, display: "flex", flexDirection: "column", gap: 20 }}>
       <header>
-        <h1 style={{ margin: 0, fontSize: 22 }}>Cài Đặt Cấu Hình Máy Chủ & Model AI</h1>
+        <h1 style={{ margin: 0, fontSize: 22 }}>⚙️ Cài Đặt Cấu Hình & Quản Lý Mô Hình AI</h1>
         <p style={{ color: theme.textMuted, fontSize: 13, margin: "4px 0 0" }}>
-          Cấu hình các provider AI (ASR, Dịch thuật LLM, TTS, Render) áp dụng cho dự án.
+          Tải trực tiếp mô hình AI local (Qwen3, VietVoice, MeloTTS, UVR5) hoặc cấu hình Cloud Engines.
         </p>
       </header>
-      <div style={{ display: "grid", gap: 16 }}>
-        {kinds.map((kind) => {
-          if (kind.key === "tts") {
-            return <div key="tts-special">{renderTtsSelector()}</div>;
-          }
-          const cfg = configFor(kind.key);
-          return (
-            <Card key={kind.key} title={kind.label}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: theme.textMuted }}>
-                  Provider hiện tại: <strong style={{ color: theme.text }}>{cfg ? cfg.provider_id : defaults[kind.key]?.provider_id}</strong>
-                </span>
-                <Button size="sm" onClick={() => save(kind.key)}>
-                  {cfg ? "Cập nhật" : "Lưu mặc định"}
-                </Button>
+
+      {/* SECTION 1: ONE-CLICK MODEL INSTALLER */}
+      <Card title="📦 Cài Đặt Mô Hình AI Trực Tiếp (1-Click Model Installer)">
+        <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 12 }}>
+          Các mô hình AI local có thể được tải & cài đặt trực tiếp từ Web App để chạy offline trên máy tính của bạn.
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {models.map((m) => (
+            <div
+              key={m.id}
+              style={{
+                padding: 12,
+                background: theme.bgElevated,
+                border: `1px solid ${theme.border}`,
+                borderRadius: 8,
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 6,
+                  background: theme.bgPanel,
+                  display: "grid",
+                  placeItems: "center",
+                  fontSize: 18,
+                }}
+              >
+                {m.type === "cloud" ? "☁️" : "📦"}
               </div>
-            </Card>
-          );
-        })}
-      </div>
-      {message && <div style={{ color: theme.success, background: "#052e16", padding: 10, borderRadius: 6, fontSize: 13 }}>{message}</div>}
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <strong style={{ fontSize: 13 }}>{m.name}</strong>
+                  <span style={{ fontSize: 11, color: theme.textMuted }}>({m.size})</span>
+                </div>
+                <div style={{ fontSize: 11, color: theme.textMuted, marginTop: 2 }}>{m.description}</div>
+
+                {m.status === "installing" && (
+                  <div style={{ marginTop: 6, width: "100%", maxWidth: 300 }}>
+                    <div style={{ fontSize: 10, color: theme.accent, marginBottom: 2 }}>
+                      Đang tải từ HuggingFace… {m.progress}%
+                    </div>
+                    <div style={{ height: 4, background: theme.bgPanel, borderRadius: 2, overflow: "hidden" }}>
+                      <div style={{ width: `${m.progress}%`, height: "100%", background: theme.accent, transition: "width 200ms ease" }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                {m.status === "installed" ? (
+                  <Badge tone="success">🟢 Sẵn sàng sử dụng</Badge>
+                ) : m.status === "installing" ? (
+                  <Badge tone="warn">⏳ Đang cài đặt {m.progress}%</Badge>
+                ) : (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={installingId === m.id}
+                    onClick={() => installModel(m.id)}
+                  >
+                    ⚡ Cài đặt ngay
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* SECTION 2: PROVIDER SELECTION */}
+      <Card title="⚙️ Cấu Hình Engines Mặc Định (Provider Assignment)">
+        <div style={{ display: "grid", gap: 14 }}>
+          {kinds.map((kind) => {
+            const cfg = configFor(kind.key);
+            return (
+              <div key={kind.key} style={{ padding: 12, background: theme.bgElevated, borderRadius: 6, border: `1px solid ${theme.border}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <strong style={{ fontSize: 13 }}>{kind.label}</strong>
+                  <Button size="sm" onClick={() => save(kind.key)}>
+                    {cfg ? "Cập nhật" : "Lưu mặc định"}
+                  </Button>
+                </div>
+                <div style={{ fontSize: 11, color: theme.textMuted, marginTop: 4 }}>
+                  Engine đang kích hoạt: <strong style={{ color: theme.accent }}>{cfg ? cfg.provider_id : defaults[kind.key]?.provider_id}</strong>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {message && (
+        <div style={{ color: theme.success, background: "#052e16", border: "1px solid #14532d", padding: 12, borderRadius: 6, fontSize: 13 }}>
+          {message}
+        </div>
+      )}
     </div>
   );
 }
