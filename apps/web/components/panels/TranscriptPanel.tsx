@@ -71,7 +71,7 @@ export function TranscriptPanel() {
                 <span style={{ fontSize: 11, color: theme.textMuted, fontVariantNumeric: "tabular-nums" }}>
                   {fmt(seg.start_ms)}
                 </span>
-                <span style={{ fontSize: 13 }}>{seg.text}</span>
+                <span style={{ fontSize: 13 }}>{seg.text || seg.raw_text || seg.normalized_text || ""}</span>
                 <span style={{ fontSize: 10, color: theme.textDim, textAlign: "right" }}>
                   conf {((seg.confidence ?? 0) * 100).toFixed(0)}%
                 </span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { theme } from "@/lib/theme";
 import { useEditor } from "@/lib/store";
 import { Button } from "@/components/ui";
@@ -13,6 +13,7 @@ interface VideoPlayerProps {
 export function VideoPlayer({ src, poster }: VideoPlayerProps) {
   const ref = useRef<HTMLVideoElement>(null);
   const currentTimeMs = useEditor((s) => s.currentTimeMs);
+  const durationMs = useEditor((s) => s.durationMs);
   const setTime = useEditor((s) => s.setTime);
   const setDuration = useEditor((s) => s.setDuration);
   const setPlaying = useEditor((s) => s.setPlaying);
@@ -95,17 +96,17 @@ export function VideoPlayer({ src, poster }: VideoPlayerProps) {
         <Button size="icon" onClick={() => step(-5000)} title="Lùi 5s">
           ⏪
         </Button>
-        <Button size="icon" onClick={togglePlay} title={playing ? "Pause (Space)" : "Play (Space)"}>
+        <Button size="icon" onClick={togglePlay} title={playing ? "Tạm dừng (Space)" : "Phát (Space)"}>
           {playing ? "⏸" : "▶"}
         </Button>
         <Button size="icon" onClick={() => step(5000)} title="Tiến 5s">
           ⏩
         </Button>
         <span style={{ fontSize: 12, fontVariantNumeric: "tabular-nums", color: theme.textMuted, minWidth: 100 }}>
-          {fmt(currentTimeMs)} / {fmt(useEditor.getState().durationMs)}
+          {fmt(currentTimeMs)} / {fmt(durationMs)}
         </span>
         <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 11, color: theme.textMuted }}>Vol</span>
+        <span style={{ fontSize: 11, color: theme.textMuted }}>Âm lượng</span>
         <input
           type="range"
           min={0}
@@ -125,6 +126,6 @@ function fmt(ms: number): string {
   const total = Math.floor(ms / 1000);
   const m = Math.floor(total / 60);
   const s = total % 60;
-  const t = Math.floor(ms % 1000 / 100);
+  const t = Math.floor((ms % 1000) / 100);
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${t}`;
 }

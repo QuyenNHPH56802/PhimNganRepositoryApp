@@ -1,22 +1,11 @@
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-
 export type QualityMode = "fast" | "balanced" | "high";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+
 export type WorkflowStatus =
   | "draft"
-  | "uploading"
-  | "uploaded"
-  | "analyzing"
-  | "asr_processing"
-  | "transcript_ready"
-  | "translating"
-  | "translation_ready"
-  | "review"
-  | "voice_assignment"
-  | "tts_processing"
-  | "subtitle_ready"
-  | "audio_mixing"
-  | "rendering"
+  | "queued"
+  | "processing"
+  | "succeeded"
   | "completed"
   | "failed"
   | "cancelled"
@@ -73,7 +62,9 @@ export interface TranscriptSegment {
   start_ms: number;
   end_ms: number;
   speaker_id?: string | null;
-  text: string;
+  text?: string;
+  raw_text?: string;
+  normalized_text?: string;
   confidence?: number;
 }
 
@@ -83,7 +74,9 @@ export interface TranslationSegment {
   end_ms: number;
   transcript_segment_id?: string;
   speaker_id?: string | null;
-  text: string;
+  text?: string;
+  display_text?: string;
+  tts_text?: string;
   status: "auto" | "review" | "edited" | "approved" | "error";
 }
 
@@ -108,19 +101,21 @@ export interface VoiceProfile {
 
 export interface SubtitleSegment {
   id: string;
-  track_id: string;
+  track_id?: string;
   start_ms: number;
   end_ms: number;
-  text: string;
+  text?: string;
+  display_text?: string;
 }
 
 export interface AudioSegment {
   id: string;
-  track_id: string;
+  track_id?: string;
   start_ms: number;
   end_ms: number;
-  audio_key: string;
-  duration_ms: number;
+  audio_key?: string;
+  storage_key?: string;
+  duration_ms?: number;
 }
 
 export type Panel =

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { theme } from "@/lib/theme";
 import { useEditor } from "@/lib/store";
 import type { SubtitleSegment, TranscriptSegment } from "@/lib/types";
@@ -14,6 +14,7 @@ export function Timeline({ videoSrc }: { videoSrc?: string }) {
   const currentTimeMs = useEditor((s) => s.currentTimeMs);
   const setTime = useEditor((s) => s.setTime);
   const zoom = useEditor((s) => s.zoom);
+  const setZoom = useEditor((s) => s.setZoom);
   const transcript = useEditor((s) => s.transcript);
   const subtitles = useEditor((s) => s.subtitles);
   const audio = useEditor((s) => s.audio);
@@ -73,11 +74,11 @@ export function Timeline({ videoSrc }: { videoSrc?: string }) {
           min={20}
           max={400}
           value={zoom}
-          onChange={(e) => useEditor.getState().setZoom(parseInt(e.target.value, 10))}
+          onChange={(e) => setZoom(parseInt(e.target.value, 10))}
         />
         <span>{zoom}%</span>
         <span style={{ marginLeft: "auto" }}>
-          {subtitles.length} subtitle • {transcript.length} segment • {audio.length} audio
+          {subtitles?.length ?? 0} phụ đề • {transcript?.length ?? 0} bản ghi • {audio?.length ?? 0} âm thanh
         </span>
       </div>
 
@@ -124,23 +125,26 @@ export function Timeline({ videoSrc }: { videoSrc?: string }) {
           </div>
 
           <Track
-            label="Video"
+            label="Video (ZH)"
             height={TRACK_HEIGHT}
             width={width}
-            segments={transcript.map((t) => ({
-              id: t.id,
-              startMs: t.start_ms,
-              endMs: t.end_ms,
-              label: t.text.slice(0, 30),
-              color: theme.bgPanel,
-            }))}
+            segments={(transcript ?? []).map((t: any) => {
+              const textContent = t.text || t.raw_text || t.normalized_text || "";
+              return {
+                id: t.id,
+                startMs: t.start_ms ?? 0,
+                endMs: t.end_ms ?? 0,
+                label: textContent.slice(0, 30),
+                color: theme.bgPanel,
+              };
+            })}
             pxPerMs={pxPerMs}
             onSeek={(ms) => setTime(ms)}
           />
 
           <SubtitleTrack
             width={width}
-            segments={subtitles}
+            segments={subtitles ?? []}
             pxPerMs={pxPerMs}
             selectedId={selectedSegmentId}
             onSelect={selectSegment}
@@ -152,10 +156,10 @@ export function Timeline({ videoSrc }: { videoSrc?: string }) {
             label="Voice (VI)"
             height={TRACK_HEIGHT}
             width={width}
-            segments={audio.map((a) => ({
+            segments={(audio ?? []).map((a) => ({
               id: a.id,
-              startMs: a.start_ms,
-              endMs: a.start_ms + a.duration_ms,
+              startMs: a.start_ms ?? 0,
+              endMs: (a.start_ms ?? 0) + (a.duration_ms ?? 0),
               label: "",
               color: theme.speaker1,
             }))}
@@ -306,9 +310,10 @@ function SubtitleTrack({
       >
         Subtitle
       </div>
-      {segments.map((seg) => {
-        const left = Math.max(80, seg.start_ms * pxPerMs);
-        const w = Math.max(40, (seg.end_ms - seg.start_ms) * pxPerMs);
+      {segments.map((seg: any) => {
+        const textContent = seg.text || seg.display_text || "";
+        const left = Math.max(80, (seg.start_ms ?? 0) * pxPerMs);
+        const w = Math.max(40, ((seg.end_ms ?? 0) - (seg.start_ms ?? 0)) * pxPerMs);
         return (
           <div
             key={seg.id}
@@ -334,9 +339,9 @@ function SubtitleTrack({
               whiteSpace: "nowrap",
               textOverflow: "ellipsis",
             }}
-            title={`${fmt(seg.start_ms)} → ${fmt(seg.end_ms)}: ${seg.text}`}
+            title={`${fmt(seg.start_ms ?? 0)} → ${fmt(seg.end_ms ?? 0)}: ${textContent}`}
           >
-            {seg.text}
+            {textContent}
           </div>
         );
       })}
@@ -358,7 +363,7 @@ function Playhead({
       style={{
         position: "absolute",
         top: 0,
-        left: currentTimeMs * pxPerMs,
+        left: (currentTimeMs ?? 0) * pxPerMs,
         height: "100%",
         width: 2,
         background: theme.danger,

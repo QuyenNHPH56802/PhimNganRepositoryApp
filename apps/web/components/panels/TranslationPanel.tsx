@@ -89,13 +89,13 @@ export function TranslationPanel() {
             </div>
             <div style={{ padding: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
-                <div style={{ fontSize: 10, color: theme.textMuted, marginBottom: 4 }}>ZH (source)</div>
-                <div style={{ fontSize: 13 }}>{source?.text ?? "—"}</div>
+                <div style={{ fontSize: 10, color: theme.textMuted, marginBottom: 4 }}>ZH (nguồn)</div>
+                <div style={{ fontSize: 13 }}>{source?.text || source?.raw_text || source?.normalized_text || "—"}</div>
               </div>
               <div>
-                <div style={{ fontSize: 10, color: theme.textMuted, marginBottom: 4 }}>VI (translation)</div>
+                <div style={{ fontSize: 10, color: theme.textMuted, marginBottom: 4 }}>VI (bản dịch)</div>
                 <textarea
-                  value={t.text}
+                  value={t.text || t.display_text || t.tts_text || ""}
                   onChange={(e) => updateTranslationSegment(t.id, e.target.value)}
                   rows={2}
                   style={{
