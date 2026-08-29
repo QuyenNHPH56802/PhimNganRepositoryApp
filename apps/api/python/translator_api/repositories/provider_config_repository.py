@@ -43,18 +43,25 @@ class ProviderConfigRepository:
 
     def upsert(
         self,
-        project_id: UUID,
+        project_id: UUID | None,
         provider_kind: str,
         provider_id: str,
         config: dict | None,
         is_active: bool = True,
     ) -> ProviderConfig:
         """Insert or update a provider config keyed on (project_id, provider_kind, provider_id)."""
-        stmt = select(ProviderConfig).where(
-            ProviderConfig.project_id == project_id,
-            ProviderConfig.provider_kind == provider_kind,
-            ProviderConfig.provider_id == provider_id,
-        )
+        if project_id is not None:
+            stmt = select(ProviderConfig).where(
+                ProviderConfig.project_id == project_id,
+                ProviderConfig.provider_kind == provider_kind,
+                ProviderConfig.provider_id == provider_id,
+            )
+        else:
+            stmt = select(ProviderConfig).where(
+                ProviderConfig.project_id.is_(None),
+                ProviderConfig.provider_kind == provider_kind,
+                ProviderConfig.provider_id == provider_id,
+            )
         existing = self.db.execute(stmt).scalar_one_or_none()
         if existing is not None:
             existing.config = config

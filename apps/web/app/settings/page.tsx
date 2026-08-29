@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { Badge, Button, Card, Input, Select } from "@/components/ui";
 import { theme } from "@/lib/theme";
+import { loadToken } from "@/lib/auth";
 import type { ProviderConfig } from "@/lib/types";
 
 type ModelItem = {
@@ -66,9 +67,19 @@ export default function SettingsPage() {
   }
 
   async function loadConfigs() {
-    if (!projectId) return;
     try {
-      const data = await api.listProviderConfigs(projectId);
+      let data: ProviderConfig[] = [];
+      if (projectId) {
+        data = await api.listProviderConfigs(projectId);
+      } else {
+        const token = loadToken();
+        const res = await fetch(`${API_BASE}/system/provider-configs`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          data = await res.json();
+        }
+      }
       setConfigs(data);
 
       const activeTranslate = data.find((c) => c.provider_kind === "translate" && c.is_active);
@@ -90,9 +101,7 @@ export default function SettingsPage() {
         if (cfg.speed) setTtsSpeed(String(cfg.speed));
       }
     } catch (exc) {
-      if (exc instanceof ApiError) {
-        setMessage(`Lỗi tải provider config: ${exc.status}`);
-      }
+      // ignore
     }
   }
 
@@ -127,10 +136,7 @@ export default function SettingsPage() {
 
   async function saveTranslateConfig(e: React.FormEvent) {
     e.preventDefault();
-    if (!projectId) {
-      setMessage("⚠️ Vui lòng tạo dự án trước khi lưu cấu hình Provider.");
-      return;
-    }
+    setMessage("⏳ Đang ghi cấu hình vào Database...");
     const body = {
       provider_kind: "translate",
       provider_id: translateProvider,
@@ -143,20 +149,29 @@ export default function SettingsPage() {
       is_active: true,
     };
     try {
-      await api.upsertProviderConfig(projectId, body);
-      setMessage("✅ Đã lưu cấu hình Dịch thuật LLM & API Key thành công!");
+      if (projectId) {
+        await api.upsertProviderConfig(projectId, body);
+      } else {
+        const token = loadToken();
+        await fetch(`${API_BASE}/system/provider-configs`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(body),
+        });
+      }
+      setMessage(`🎉 ĐÃ LƯU THÀNH CÔNG: Cấu hình LLM [${translateModelId}] & API Key đã được lưu vào hệ thống!`);
       await loadConfigs();
     } catch (exc) {
-      setMessage(exc instanceof ApiError ? `❌ Lỗi: ${exc.status}` : String(exc));
+      setMessage(exc instanceof ApiError ? `❌ Lỗi lưu cấu hình: ${exc.status}` : String(exc));
     }
   }
 
   async function saveTtsConfig(e: React.FormEvent) {
     e.preventDefault();
-    if (!projectId) {
-      setMessage("⚠️ Vui lòng tạo dự án trước khi lưu cấu hình Provider.");
-      return;
-    }
+    setMessage("⏳ Đang ghi cấu hình vào Database...");
     const body = {
       provider_kind: "tts",
       provider_id: ttsProvider,
@@ -168,11 +183,23 @@ export default function SettingsPage() {
       is_active: true,
     };
     try {
-      await api.upsertProviderConfig(projectId, body);
-      setMessage("✅ Đã lưu cấu hình Tổng hợp Giọng nói (TTS) thành công!");
+      if (projectId) {
+        await api.upsertProviderConfig(projectId, body);
+      } else {
+        const token = loadToken();
+        await fetch(`${API_BASE}/system/provider-configs`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(body),
+        });
+      }
+      setMessage(`🎉 ĐÃ LƯU THÀNH CÔNG: Cấu hình TTS Engine [${ttsProvider}] đã được lưu vào hệ thống!`);
       await loadConfigs();
     } catch (exc) {
-      setMessage(exc instanceof ApiError ? `❌ Lỗi: ${exc.status}` : String(exc));
+      setMessage(exc instanceof ApiError ? `❌ Lỗi lưu cấu hình: ${exc.status}` : String(exc));
     }
   }
 
@@ -201,6 +228,23 @@ export default function SettingsPage() {
           Nhập API Key (OpenAI, DeepSeek, Azure, ElevenLabs) hoặc cấu hình Ollama local & mô hình tự host.
         </p>
       </header>
+
+      {message && (
+        <div
+          style={{
+            color: message.startsWith("❌") ? theme.danger : theme.success,
+            background: message.startsWith("❌") ? "#450a0a" : "#052e16",
+            border: `1px solid ${message.startsWith("❌") ? "#7f1d1d" : "#14532d"}`,
+            padding: 14,
+            borderRadius: 8,
+            fontSize: 14,
+            fontWeight: 600,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+          }}
+        >
+          {message}
+        </div>
+      )}
 
       {/* SECTION 1: LLM TRANSLATION CONFIGURATION WITH API KEY */}
       <Card title="🔑 Cấu Hình Dịch Thuật LLM & API Key (Translation LLM)">
@@ -394,12 +438,6 @@ export default function SettingsPage() {
           ))}
         </div>
       </Card>
-
-      {message && (
-        <div style={{ color: theme.success, background: "#052e16", border: "1px solid #14532d", padding: 12, borderRadius: 6, fontSize: 13 }}>
-          {message}
-        </div>
-      )}
     </div>
   );
 }

@@ -295,22 +295,55 @@ async def upsert_provider_config(
     return _provider_config_response(config)
 
 
+@router.put(
+    "/system/provider-configs",
+    response_model=ProviderConfigResponse,
+    tags=["providers"],
+)
+async def upsert_global_provider_config(
+    payload: ProviderConfigUpsert,
+    identity: UserIdentity = Depends(get_identity),
+    db: Session = Depends(get_db),
+) -> ProviderConfigResponse:
+    repo = ProviderConfigRepository(db)
+    config = repo.upsert(
+        project_id=None,
+        provider_kind=payload.provider_kind,
+        provider_id=payload.provider_id,
+        config=payload.config,
+        is_active=payload.is_active,
+    )
+    db.add(AuditLog(
+        entity_type="provider_config",
+        entity_id=str(config.id),
+        action="upsert_global",
+        payload={
+            "actor": identity.email,
+            "provider_kind": payload.provider_kind,
+            "provider_id": payload.provider_id,
+        },
+    ))
+    db.commit()
+    db.refresh(config)
+    return _provider_config_response(config)
+
+
 @router.get(
-    "/projects/{project_id}/provider-configs",
+    "/system/provider-configs",
     response_model=list[ProviderConfigResponse],
     tags=["providers"],
 )
-async def list_provider_configs(
-    project_id: UUID,
+async def list_global_provider_configs(
     kind: str | None = None,
     identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ) -> list[ProviderConfigResponse]:
-    require_project_role(project_id, Role.VIEWER, db=db, identity=identity)
-    repo = ProviderConfigRepository(db)
-    rows = repo.list_for_project(project_id)
+    from sqlalchemy import select
+    from translator_api.models import ProviderConfig
+    stmt = select(ProviderConfig).where(ProviderConfig.project_id.is_(None))
     if kind:
-        rows = [r for r in rows if r.provider_kind == kind]
+        stmt = stmt.where(ProviderConfig.provider_kind == kind)
+    rows = list(db.execute(stmt).scalars())
     return [_provider_config_response(row) for row in rows]
 
 
