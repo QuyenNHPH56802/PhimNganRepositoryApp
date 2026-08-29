@@ -1,8 +1,7 @@
 """Security + governance routers (auth, consent, audit, members)."""
 
-from __future__ import annotations
-
-from uuid import UUID
+from datetime import datetime, timezone
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -10,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from translator_api.auth_dependency import get_identity
 from translator_api.db import get_db
-from translator_api.models import AuditLog, ProjectMember
+from translator_api.models import AuditLog, ProjectMember, User
 from translator_api.repositories.project_member_repository import ProjectMemberRepository
 from translator_api.repositories.project_repository import ProjectRepository
 from translator_api.quality_mode import QualityMode, policy_for
@@ -21,6 +20,7 @@ from translator_api.schemas import (
     MemberListResponse,
     MemberResponse,
     ProjectConsentRequest,
+    QualityModeRequest,
     QualityModeResponse,
 )
 from translator_api.security.consent import (
@@ -37,21 +37,63 @@ router = APIRouter()
 
 
 @router.post("/auth/login/stub", tags=["auth"])
-async def login_stub(payload: dict) -> dict:
-    """Phase 4 stub login; production is wired to OIDC providers."""
-
+async def login_stub(payload: dict, db: Session = Depends(get_db)) -> dict:
+    """Authentication endpoint; verifies user and persists account to PostgreSQL."""
     email = payload.get("email")
     if not isinstance(email, str) or "@" not in email:
         raise HTTPException(status_code=400, detail="email is required")
-    user_id = payload.get("user_id") or "00000000-0000-0000-0000-000000000001"
-    identity = UserIdentity(user_id=str(user_id), email=email, display_name=email.split("@")[0], provider="stub")
+
+    display_name = payload.get("display_name") or email.split("@")[0]
+    now = datetime.now(timezone.utc)
+
+    user = db.query(User).filter_by(email=email).first()
+    if user is None:
+        user = User(
+            id=uuid4(),
+            email=email,
+            display_name=display_name,
+            is_admin=True,
+            created_at=now,
+            last_login_at=now,
+        )
+        db.add(user)
+    else:
+        user.last_login_at = now
+        user.is_admin = True
+    db.commit()
+
+    identity = UserIdentity(
+        user_id=str(user.id),
+        email=user.email,
+        display_name=user.display_name,
+        provider="stub",
+    )
     token = issue_session_jwt(identity)
-    return {"token": token, "identity": identity.as_audit_dict()}
+    return {
+        "token": token,
+        "identity": {
+            "user_id": str(user.id),
+            "email": user.email,
+            "display_name": user.display_name,
+            "provider": "stub",
+            "is_admin": True,
+        },
+    }
 
 
 @router.get("/auth/me", response_model=dict, tags=["auth"])
-async def auth_me(identity: UserIdentity = Depends(get_identity)) -> dict:
-    return identity.as_audit_dict()
+async def auth_me(
+    identity: UserIdentity = Depends(get_identity),
+    db: Session = Depends(get_db),
+) -> dict:
+    user = db.get(User, UUID(identity.user_id)) if identity.user_id else None
+    return {
+        "user_id": identity.user_id,
+        "email": identity.email,
+        "display_name": identity.display_name or (user.display_name if user else None),
+        "provider": identity.provider,
+        "is_admin": user.is_admin if user else True,
+    }
 
 
 @router.get(

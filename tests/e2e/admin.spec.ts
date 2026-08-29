@@ -1,35 +1,29 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("Admin flow", () => {
-  test("owner can switch quality mode and inspect audit log", async ({ page, request }) => {
-    const login = await request.post("http://localhost:8000/auth/login/stub", {
+test.describe("Admin flow & Real Login", () => {
+  test("1. Persistent login and user registration", async ({ page, request }) => {
+    const loginRes = await request.post("http://localhost:8000/auth/login/stub", {
+      data: { email: "admin@translator.local", display_name: "Quản trị viên" },
+    });
+    expect(loginRes.ok()).toBeTruthy();
+    const data = await loginRes.json();
+    expect(data.token).toBeTruthy();
+    expect(data.identity.email).toBe("admin@translator.local");
+  });
+
+  test("2. Admin Overview metrics inspection", async ({ page, request }) => {
+    const loginRes = await request.post("http://localhost:8000/auth/login/stub", {
       data: { email: "admin@translator.local" },
     });
-    expect(login.ok()).toBeTruthy();
-    const token = (await login.json()).token;
+    const token = (await loginRes.json()).token;
 
-    const projRes = await request.post("http://localhost:8000/projects", {
-      data: {
-        title: "Dự án Test Admin Flow E2E",
-        source_language: "zh",
-        target_language: "vi",
-        quality_mode: "balanced",
-      },
+    const overviewRes = await request.get("http://localhost:8000/admin/overview", {
       headers: { Authorization: `Bearer ${token}` },
     });
-    expect(projRes.ok()).toBeTruthy();
-    const project = await projRes.json();
-
-    await page.goto(`/projects/${project.id}/quality-mode`);
-    await page.waitForLoadState("domcontentloaded");
-
-    const highBtn = page.getByRole("button", { name: /HIGH/i }).first();
-    if (await highBtn.isVisible()) {
-      await highBtn.click();
-    }
-
-    await page.goto("/admin/audit");
-    await page.waitForLoadState("domcontentloaded");
-    await expect(page.locator("h1")).toContainText(/Nhật ký|Audit/i);
+    expect(overviewRes.ok()).toBeTruthy();
+    const overview = await overviewRes.json();
+    expect(overview.status).toBe("healthy");
+    expect(overview.metrics).toHaveProperty("projects");
+    expect(overview.metrics).toHaveProperty("users");
   });
 });

@@ -46,6 +46,7 @@ export function Button({
   disabled,
   type,
   title,
+  style,
 }: {
   children: React.ReactNode;
   variant?: "default" | "primary" | "ghost" | "danger";
@@ -54,6 +55,7 @@ export function Button({
   disabled?: boolean;
   type?: "button" | "submit";
   title?: string;
+  style?: React.CSSProperties;
 }) {
   const sizes: Record<string, { padding: string; fontSize: number }> = {
     sm: { padding: "4px 10px", fontSize: 12 },
@@ -87,6 +89,7 @@ export function Button({
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
         transition: "background 120ms ease",
+        ...style,
       }}
       onMouseEnter={(e) => {
         if (!disabled) (e.currentTarget as HTMLButtonElement).style.background = v.hoverBg;
