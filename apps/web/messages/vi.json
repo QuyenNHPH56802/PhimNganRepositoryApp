@@ -149,5 +149,28 @@
     "workflowRunning": "Tiến trình xử lý đang chạy…",
     "workflowDone": "Tiến trình xử lý đã hoàn tất thành công",
     "workflowFailed": "Tiến trình xử lý gặp lỗi"
+  },
+  "panel": {
+    "empty": {
+      "transcript": "Chạy bước ASR để tạo transcript từ audio gốc.",
+      "translation": "Chạy bước Translation để tạo bản dịch Tiếng Việt.",
+      "speaker": "Chạy bước Diarization để nhận diện speaker trong audio.",
+      "voice": "Tạo voice profile từ provider TTS hoặc clone từ giọng thật.",
+      "subtitle": "Chạy bước Subtitle từ trang Project để tạo subtitle VI.",
+      "audio": "Chạy TTS để tạo voice segment trước.",
+      "render": "Cấu hình tuỳ chọn render bên dưới và chạy pipeline."
+    },
+    "noFilterMatch": "Không có segment khớp với bộ lọc hiện tại.",
+    "searchPlaceholder": "Tìm theo nội dung / speaker / timestamp",
+    "voiceNameRequired": "Vui lòng nhập tên voice"
+  },
+  "toast": {
+    "createVoiceOk": "Đã tạo voice profile",
+    "createVoiceFail": "Không thể tạo voice",
+    "updateVoiceOk": "Đã cập nhật voice profile",
+    "updateVoiceFail": "Không thể cập nhật voice",
+    "previewFail": "Không thể preview voice",
+    "noProjectSelected": "Vui lòng chọn project trước",
+    "noAudioUrl": "Không có audio URL trả về"
   }
 }

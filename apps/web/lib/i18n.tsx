@@ -64,11 +64,15 @@ function isLocale(value: string | null | undefined): value is Locale {
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("vi");
+  // Lazy init so we read localStorage only on the client (avoids SSR
+  // hydration mismatches when the saved locale differs from the default).
+  const [locale, setLocaleState] = useState<Locale>(() => {
+    if (typeof window === "undefined") return "vi";
+    const saved = window.localStorage.getItem("translator.locale");
+    return isLocale(saved) ? saved : "vi";
+  });
 
   useEffect(() => {
-    const saved = typeof window !== "undefined" ? window.localStorage.getItem("translator.locale") : null;
-    if (isLocale(saved)) setLocaleState(saved);
     document.documentElement.lang = locale;
   }, [locale]);
 
@@ -85,9 +89,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       t: (path, fallback) => {
         const primary = getByPath(CATALOGS[locale], path);
         if (typeof primary === "string") return primary;
-        const fallbackLocale: Locale = locale === "vi" ? "en" : "vi";
-        const fb = getByPath(CATALOGS[fallbackLocale], path);
+        // Always fall back to English — never to another user-selected locale
+        // — so missing keys get a consistent baseline across languages.
+        const fb = getByPath(CATALOGS.en, path);
         if (typeof fb === "string") return fb;
+        if (process.env.NODE_ENV !== "production" && typeof console !== "undefined") {
+          console.warn(`[i18n] Missing key: ${path}`);
+        }
         return fallback ?? path;
       },
     }),

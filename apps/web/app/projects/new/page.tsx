@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
-import { Button, Card, EmptyState, StatusDot, Input, Select } from "@/components/ui";
+import { Button, Card, Input, Select, ProgressBar } from "@/components/ui";
 import { theme } from "@/lib/theme";
+import { loadToken } from "@/lib/auth";
+import { API_BASE_URL } from "@/lib/types";
+
+type Stage = "form" | "creating" | "uploading" | "triggering" | "done";
 
 export default function NewProjectPage() {
   const router = useRouter();
@@ -14,8 +18,9 @@ export default function NewProjectPage() {
   const [target, setTarget] = useState("vi");
   const [mode, setMode] = useState<"fast" | "balanced" | "high">("balanced");
   const [file, setFile] = useState<File | null>(null);
-  const [stage, setStage] = useState<"form" | "uploading" | "creating" | "done">("form");
+  const [stage, setStage] = useState<Stage>("form");
   const [progress, setProgress] = useState(0);
+  const [stageMessage, setStageMessage] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
@@ -25,8 +30,12 @@ export default function NewProjectPage() {
       setError("Vui lòng nhập tên project");
       return;
     }
+    let projectId: string | null = null;
     try {
+      // Stage 1: create project
       setStage("creating");
+      setProgress(5);
+      setStageMessage("Đang tạo project…");
       const project = await api.createProject({
         title: title.trim(),
         source_language: source,
@@ -34,31 +43,62 @@ export default function NewProjectPage() {
         quality_mode: mode,
         language_profile: `${source}-${target}`,
       });
+      projectId = project.id;
 
+      // Stage 2: upload video (if provided)
       if (file) {
         setStage("uploading");
-        const presign = await api.presignAsset(project.id, {
-          filename: file.name,
-          mime: file.type || "video/mp4",
-          size: file.size,
+        setStageMessage("Đang upload video lên server…");
+        await uploadWithProgress(project.id, file, (pct) => {
+          setProgress(Math.max(10, Math.min(85, 10 + Math.round(pct * 0.75))));
         });
-        await uploadWithProgress(presign.url, file, setProgress);
+      } else {
+        setProgress(85);
+      }
+
+      // Stage 3: trigger workflow pipeline
+      setStage("triggering");
+      setProgress(92);
+      setStageMessage("Đang khởi động pipeline xử lý…");
+      try {
+        await api.triggerWorkflow(project.id, { quality_mode: mode });
+      } catch (wfErr) {
+        // Backend may not be available; still allow user to enter workspace
+        console.warn("triggerWorkflow failed:", wfErr);
       }
 
       setStage("done");
-      router.push(`/projects/${project.id}`);
+      setProgress(100);
+      setStageMessage("Hoàn tất — đang chuyển sang workspace…");
+      setTimeout(() => {
+        router.push(`/projects/${project.id}/workspace`);
+      }, 900);
     } catch (err) {
-      setError(err instanceof ApiError ? `${err.status}: ${JSON.stringify(err.detail)}` : String(err));
+      setError(
+        err instanceof ApiError
+          ? `${err.status}: ${JSON.stringify(err.detail)}`
+          : String(err),
+      );
       setStage("form");
     }
   }
+
+  const stageLabel: Record<Stage, string> = {
+    form: "",
+    creating: "Đang tạo project…",
+    uploading: file ? `Đang upload (${progress.toFixed(0)}%)` : "Đang chuẩn bị…",
+    triggering: "Đang khởi động pipeline xử lý…",
+    done: "Hoàn tất — đang chuyển…",
+  };
+
+  const showProgress = stage !== "form";
 
   return (
     <div style={{ padding: 24, maxWidth: 720, margin: "0 auto", width: "100%" }}>
       <header style={{ marginBottom: 18 }}>
         <h1 style={{ margin: 0, fontSize: 22 }}>Tạo project mới</h1>
         <p style={{ margin: "4px 0 0", color: theme.textMuted, fontSize: 13 }}>
-          Upload video Trung và bắt đầu quy trình dịch + lồng tiếng Việt.
+          Upload video Trung, hệ thống sẽ xử lý ngay tại đây và đưa vào workspace.
         </p>
       </header>
 
@@ -84,7 +124,10 @@ export default function NewProjectPage() {
             </Field>
           </div>
           <Field label="Chất lượng xử lý">
-            <Select value={mode} onChange={(e) => setMode(e.target.value as "fast" | "balanced" | "high")}>
+            <Select
+              value={mode}
+              onChange={(e) => setMode(e.target.value as "fast" | "balanced" | "high")}
+            >
               <option value="fast">Fast — ASR nhanh, không diarization</option>
               <option value="balanced">Balanced — WhisperX + diarization</option>
               <option value="high">High — WhisperX + diarization + voice clone</option>
@@ -139,41 +182,18 @@ export default function NewProjectPage() {
             </div>
           )}
 
-          {stage !== "form" && (
-            <div>
-              <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 4 }}>
-                {stage === "creating"
-                  ? "Đang tạo project…"
-                  : stage === "uploading"
-                    ? `Đang upload ${progress.toFixed(0)}%`
-                    : "Hoàn tất — đang chuyển…"}
-              </div>
-              <div
-                style={{
-                  height: 6,
-                  background: theme.bgElevated,
-                  borderRadius: 3,
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    width: `${stage === "uploading" ? progress : stage === "creating" ? 10 : 100}%`,
-                    height: "100%",
-                    background: theme.accent,
-                    transition: "width 200ms ease",
-                  }}
-                />
-              </div>
-            </div>
+          {showProgress && (
+            <ProgressBar value={progress} hint={stageLabel[stage]} />
           )}
 
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 6 }}>
             <Link href="/">
-              <Button type="button">Huỷ</Button>
+              <Button type="button" disabled={stage !== "form"}>
+                Huỷ
+              </Button>
             </Link>
             <Button variant="primary" disabled={stage !== "form"} type="submit">
-              Tạo project
+              {stage === "form" ? "Tạo project & xử lý" : "Đang xử lý…"}
             </Button>
           </div>
         </form>
@@ -191,15 +211,35 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function uploadWithProgress(url: string, file: File, onProgress: (n: number) => void): Promise<void> {
-  return new Promise((resolve, reject) => {
+async function uploadWithProgress(
+  projectId: string,
+  file: File,
+  onProgress: (n: number) => void,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
     const xhr = new XMLHttpRequest();
-    xhr.open("PUT", url);
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress((e.loaded / e.total) * 100);
-    };
-    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`upload ${xhr.status}`)));
-    xhr.onerror = () => reject(new Error("upload failed"));
-    xhr.send(file);
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(100);
+        resolve();
+      } else {
+        reject(new Error(`Upload failed: HTTP ${xhr.status}`));
+      }
+    });
+    xhr.addEventListener("error", () => reject(new Error("Network error during upload")));
+    xhr.addEventListener("abort", () => reject(new Error("Upload aborted")));
+
+    const token = loadToken();
+    xhr.open("POST", `${API_BASE_URL}/projects/${projectId}/assets:upload`);
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.send(formData);
   });
 }

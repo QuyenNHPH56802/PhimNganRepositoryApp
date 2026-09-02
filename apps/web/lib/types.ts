@@ -1,15 +1,26 @@
 export type QualityMode = "fast" | "balanced" | "high";
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+
+// Single source of truth for the backend base URL.
+// - In Docker, the web container reaches the API container at `api:8000`.
+// - In dev, the browser reaches the local backend at `localhost:8000`.
+// `next.config.mjs` forwards NEXT_PUBLIC_API_BASE_URL to the client bundle;
+// the DOCKER_CONTAINER check lets the same bundle work inside Docker.
+function resolveApiBaseUrl(): string {
+  if (process.env.DOCKER_CONTAINER === "true") {
+    return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://api:8000";
+  }
+  return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 export type WorkflowStatus =
   | "draft"
-  | "queued"
   | "processing"
-  | "succeeded"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "paused";
+  | "awaiting_review"
+  | "ready"
+  | "archived"
+  | "failed";
 
 export interface Project {
   id: string;
@@ -91,12 +102,8 @@ export interface VoiceProfile {
   id: string;
   project_id: string;
   speaker_id?: string | null;
-  name: string;
-  provider_id: string;
-  model_id: string;
-  voice_id: string;
-  default_accent?: string | null;
   consent_status: string;
+  reference_audio_key?: string | null;
 }
 
 export interface SubtitleSegment {
@@ -116,6 +123,8 @@ export interface AudioSegment {
   audio_key?: string;
   storage_key?: string;
   duration_ms?: number;
+  translation_segment_id?: string;
+  source?: string;
 }
 
 export type Panel =

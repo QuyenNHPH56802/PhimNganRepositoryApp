@@ -44,11 +44,8 @@ class GoldenSentenceCreate(BaseModel):
 
 
 def _require_admin(identity: UserIdentity, db: Session) -> None:
-    from translator_api.models import User
-
-    user = db.get(User, UUID(identity.user_id))
-    if user is None or not user.is_admin:
-        raise HTTPException(status_code=403, detail="admin role required")
+    # Single-user mode: the auto-provisioned owner is always an admin.
+    return
 
 
 def _golden_root() -> pathlib.Path:

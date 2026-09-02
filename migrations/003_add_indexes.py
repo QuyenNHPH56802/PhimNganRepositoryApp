@@ -1,11 +1,20 @@
-# Database Migration: Add Indexes for Foreign Keys
+"""Add indexes for foreign keys to improve query performance.
+
+Revision ID: 003
+Revises: 002
+Create Date: 2026-09-02
 
 """
-Add indexes for foreign key columns to improve query performance.
+from alembic import op
+import sqlalchemy as sa
 
-This migration addresses N+1 query problems identified in panel APIs
-and improves JOIN performance across related tables.
-"""
+
+# revision identifiers, used by Alembic.
+revision = '003'
+down_revision = '002'
+branch_labels = None
+depends_on = None
+
 
 def upgrade():
     """Add indexes for foreign keys."""

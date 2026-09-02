@@ -22,4 +22,30 @@ class CosyVoice3Provider(LocalTtsProvider):
     def _synthesize(self, payload: TtsInput) -> bytes:
         if not self._loaded:
             raise CapabilityUnsupported("cosyvoice-not-loaded", "cosyvoice SDK was not loaded")
-        return b""
+        try:
+            import cosyvoice
+            from cosyvoice.cosyvoice.utils.model_utils import load_audio
+            import numpy as np
+            import soundfile as sf
+            import tempfile
+            from pathlib import Path
+
+            # Load cosyvoice model if not already loaded
+            if not hasattr(self, '_model') or self._model is None:
+                self._model = cosyvoice.CosyVoice('CozyVoice3/BionicSilicon/CosyVoice3-0.5B', 
+                                                   load_cache=False, 
+                                                   instruct_mode=True)
+
+            # Generate speech
+            result = self._model.inference(payload.text, prompt_text=payload.prompt_text, 
+                                           prompt_audio=payload.reference_audio_key)
+            
+            # Convert to wav and return bytes
+            output_path = Path(tempfile.mktemp(suffix='.wav'))
+            sf.write(str(output_path), result['audio'].numpy(), result['sampling_rate'])
+            audio_bytes = output_path.read_bytes()
+            output_path.unlink()
+            
+            return audio_bytes
+        except Exception as exc:
+            raise CapabilityUnsupported("cosyvoice-synthesis-failed", f"CosyVoice synthesis failed: {exc}") from exc

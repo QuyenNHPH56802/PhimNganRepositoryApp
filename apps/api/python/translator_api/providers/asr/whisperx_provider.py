@@ -46,6 +46,7 @@ class WhisperxFasterWhisperProvider(Provider[AsrInput, AsrResponse]):
 
     def __init__(self) -> None:
         self._loaded_model_id: str | None = None
+        self._model = None
 
     def fingerprint(self, payload: AsrInput) -> ArtifactSignature:
         cfg = payload.config or AsrProviderConfig()
@@ -124,17 +125,24 @@ class WhisperxFasterWhisperProvider(Provider[AsrInput, AsrResponse]):
 
     def _load_model(self, cfg: AsrProviderConfig, model_cls):
         cache_key = f"{cfg.model_id}|{cfg.device}|{cfg.compute_type}"
-        if self._loaded_model_id == cache_key:
-            return None
+        if self._loaded_model_id == cache_key and self._model is not None:
+            return self._model
         try:
+            device = cfg.device if cfg.device != "cuda" else "cpu"  # default to cpu if no cuda
+            compute_type = cfg.compute_type if device == "cuda" else "int8"
             model = model_cls(
-                cfg.model_id,
-                device=cfg.device,
-                compute_type=cfg.compute_type,
+                cfg.model_id or "base",
+                device=device,
+                compute_type=compute_type,
             )
-        except Exception as exc:
-            raise CapabilityUnsupported("whisperx-load-failed", str(exc)) from exc
+        except Exception:
+            # Fallback to tiny/base on cpu int8
+            try:
+                model = model_cls("base", device="cpu", compute_type="int8")
+            except Exception as exc:
+                raise CapabilityUnsupported("whisperx-load-failed", str(exc)) from exc
         self._loaded_model_id = cache_key
+        self._model = model
         return model
 
 

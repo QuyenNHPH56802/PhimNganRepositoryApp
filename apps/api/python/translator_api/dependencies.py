@@ -7,30 +7,27 @@ from sqlalchemy.orm import Session
 
 from translator_api.db import get_db
 from translator_api.security.identity import UserIdentity
-from translator_api.security.session import SessionError, verify_session_jwt
+from translator_api.auth_dependency import OWNER_USER_ID, OWNER_EMAIL, OWNER_DISPLAY_NAME
 
 
-def _extract_bearer(authorization: str | None) -> str:
-    if not authorization:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="missing bearer token",
-        )
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid auth scheme",
-        )
-    return token
+def _load_identity() -> UserIdentity:
+    return UserIdentity(
+        user_id=OWNER_USER_ID,
+        email=OWNER_EMAIL,
+        display_name=OWNER_DISPLAY_NAME,
+        provider="single-user",
+    )
 
 
 def get_identity(authorization: str | None = Header(default=None)) -> UserIdentity:
-    token = _extract_bearer(authorization)
-    try:
-        return verify_session_jwt(token)
-    except SessionError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+    if authorization:
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="invalid auth scheme",
+            )
+    return _load_identity()
 
 
 def get_db_session(db: Session = Depends(get_db)) -> Session:

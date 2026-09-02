@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useEditor } from "@/lib/store";
 import { Button, Card, EmptyState, Input, StatusDot } from "@/components/ui";
 import { speakerColor, theme } from "@/lib/theme";
@@ -10,8 +10,20 @@ export function TranscriptPanel() {
   const transcript = useEditor((s) => s.transcript);
   const setTime = useEditor((s) => s.setTime);
   const currentTimeMs = useEditor((s) => s.currentTimeMs);
+  const [query, setQuery] = useState("");
+  const [active, setActive] = useState(false);
 
-  const grouped = useMemo(() => groupBySpeaker(transcript), [transcript]);
+  const filteredTranscript = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return transcript;
+    return transcript.filter((s) => {
+      const text = (s.text ?? s.raw_text ?? s.normalized_text ?? "").toLowerCase();
+      const speaker = (s.speaker_id ?? "").toLowerCase();
+      return text.includes(q) || speaker.includes(q);
+    });
+  }, [transcript, query]);
+
+  const grouped = useMemo(() => groupBySpeaker(filteredTranscript), [filteredTranscript]);
 
   if (transcript.length === 0) {
     return (
@@ -25,9 +37,46 @@ export function TranscriptPanel() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", gap: 8 }}>
-        <Input placeholder="Tìm theo Chinese / speaker / timestamp" />
-        <Button>Tìm</Button>
+        <Input
+          placeholder="Tìm theo nội dung / speaker / timestamp"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            // Enter seeks the video to the first matching segment so the
+            // "🔍 Tìm" button has a real effect.
+            if (e.key === "Enter") {
+              setActive(true);
+              const first = filteredTranscript[0];
+              if (first) setTime(first.start_ms);
+            }
+          }}
+        />
+        <Button
+          onClick={() => {
+            setActive(true);
+            const first = filteredTranscript[0];
+            if (first) setTime(first.start_ms);
+          }}
+        >
+          🔍 Tìm
+        </Button>
+        {active && (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setQuery("");
+              setActive(false);
+            }}
+          >
+            ✕ Bỏ lọc
+          </Button>
+        )}
       </div>
+      {active && filteredTranscript.length === 0 && (
+        <div style={{ padding: 16, color: theme.textMuted, fontSize: 13, textAlign: "center" }}>
+          Không có segment khớp với "{query}".
+        </div>
+      )}
       {grouped.map((g) => (
         <Card key={g.speakerId} padded={false}>
           <div
@@ -52,7 +101,7 @@ export function TranscriptPanel() {
             <span style={{ fontSize: 11, color: theme.textMuted }}>{g.segments.length} segments</span>
           </div>
           {g.segments.map((seg) => {
-            const active = currentTimeMs >= seg.start_ms && currentTimeMs < seg.end_ms;
+            const isActive = currentTimeMs >= seg.start_ms && currentTimeMs < seg.end_ms;
             return (
               <div
                 key={seg.id}
@@ -65,7 +114,7 @@ export function TranscriptPanel() {
                   gridTemplateColumns: "80px 1fr 80px",
                   gap: 12,
                   alignItems: "center",
-                  background: active ? "rgba(125,211,252,0.06)" : "transparent",
+                  background: isActive ? "rgba(125,211,252,0.06)" : "transparent",
                 }}
               >
                 <span style={{ fontSize: 11, color: theme.textMuted, fontVariantNumeric: "tabular-nums" }}>

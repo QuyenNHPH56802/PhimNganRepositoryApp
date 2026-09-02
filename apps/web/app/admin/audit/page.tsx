@@ -108,7 +108,7 @@ export default function AuditPage() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#0d172e" }}>
-                {["Thời gian", "Đối tượng", "Hành động", "Người thực hiện", "ID Thực thể", "Chi tiết Payload"].map((h) => (
+                {["Thời gian", "Đối tượng", "Hành động", "Actor", "ID Thực thể", "Chi tiết Payload"].map((h) => (
                   <th
                     key={h}
                     style={{

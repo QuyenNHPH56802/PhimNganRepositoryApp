@@ -5,10 +5,11 @@ import { theme } from "@/lib/theme";
 import { useEditor } from "@/lib/store";
 import type { SubtitleSegment, TranscriptSegment } from "@/lib/types";
 
-const TRACK_HEIGHT = 36;
-const SUBTITLE_TRACK_HEIGHT = 56;
+const TRACK_HEIGHT = 30;
+const SUBTITLE_TRACK_HEIGHT = 46;
+const RULER_HEIGHT = 24;
 
-export function Timeline({ videoSrc }: { videoSrc?: string }) {
+export function Timeline() {
   const containerRef = useRef<HTMLDivElement>(null);
   const durationMs = useEditor((s) => s.durationMs);
   const currentTimeMs = useEditor((s) => s.currentTimeMs);
@@ -37,12 +38,19 @@ export function Timeline({ videoSrc }: { videoSrc?: string }) {
     setTime(pxToMs(x));
   }
 
+  // Cap ticks at 200 to keep DOM light during zoom-out.
   const ticks = useMemo(() => {
-    const target = 100;
-    const rawStep = target / pxPerMs;
+    let step = 1000;
     const steps = [100, 250, 500, 1000, 2000, 5000, 10_000, 30_000, 60_000];
-    const step = steps.find((s) => s >= rawStep) ?? 60_000;
-    const count = Math.ceil(totalMs / step) + 1;
+    const rawStep = 100 / pxPerMs;
+    const found = steps.find((s) => s >= rawStep);
+    if (found) step = found;
+    let count = Math.ceil(totalMs / step) + 1;
+    // Double step until count ≤ 200.
+    while (count > 200 && step < 60_000) {
+      step *= 2;
+      count = Math.ceil(totalMs / step) + 1;
+    }
     return Array.from({ length: count }, (_, i) => ({ ms: i * step, label: fmt(i * step) }));
   }, [totalMs, pxPerMs]);
 
@@ -53,7 +61,11 @@ export function Timeline({ videoSrc }: { videoSrc?: string }) {
         borderTop: `1px solid ${theme.border}`,
         display: "flex",
         flexDirection: "column",
-        minHeight: 220,
+        height: 200,
+        flexShrink: 0,
+        position: "relative",
+        zIndex: 1,
+        isolation: "isolate",
       }}
     >
       <div
@@ -65,6 +77,10 @@ export function Timeline({ videoSrc }: { videoSrc?: string }) {
           gap: 10,
           fontSize: 11,
           color: theme.textMuted,
+          flexShrink: 0,
+          background: "#0d172e",
+          position: "relative",
+          zIndex: 4,
         }}
       >
         <span>Timeline</span>
@@ -86,9 +102,11 @@ export function Timeline({ videoSrc }: { videoSrc?: string }) {
         ref={containerRef}
         style={{
           flex: 1,
+          minHeight: 0,
           overflowX: "auto",
           overflowY: "hidden",
           position: "relative",
+          background: "#0a1426",
         }}
       >
         <div style={{ width, position: "relative" }}>
@@ -97,7 +115,7 @@ export function Timeline({ videoSrc }: { videoSrc?: string }) {
             style={{
               position: "sticky",
               top: 0,
-              height: 28,
+              height: RULER_HEIGHT,
               background: "#0a1426",
               borderBottom: `1px solid ${theme.border}`,
               cursor: "pointer",
@@ -129,12 +147,12 @@ export function Timeline({ videoSrc }: { videoSrc?: string }) {
             height={TRACK_HEIGHT}
             width={width}
             segments={(transcript ?? []).map((t: any) => {
-              const textContent = t.text || t.raw_text || t.normalized_text || "";
+              const textContent = t?.text || t?.raw_text || t?.normalized_text || "";
               return {
-                id: t.id,
-                startMs: t.start_ms ?? 0,
-                endMs: t.end_ms ?? 0,
-                label: textContent.slice(0, 30),
+                id: t?.id ?? `seg-${Math.random()}`,
+                startMs: t?.start_ms ?? 0,
+                endMs: t?.end_ms ?? 0,
+                label: String(textContent).slice(0, 30),
                 color: theme.bgPanel,
               };
             })}
@@ -167,7 +185,7 @@ export function Timeline({ videoSrc }: { videoSrc?: string }) {
             onSeek={(ms) => setTime(ms)}
           />
 
-          <Playhead width={width} currentTimeMs={currentTimeMs} pxPerMs={pxPerMs} />
+          <Playhead width={width} currentTimeMs={currentTimeMs} pxPerMs={pxPerMs} containerRef={containerRef} />
         </div>
       </div>
     </div>
@@ -350,25 +368,28 @@ function SubtitleTrack({
 }
 
 function Playhead({
-  width,
+  width: _width,
   currentTimeMs,
   pxPerMs,
+  containerRef,
 }: {
   width: number;
   currentTimeMs: number;
   pxPerMs: number;
+  containerRef: React.RefObject<HTMLDivElement>;
 }) {
+  // `position: sticky` keeps the playhead visible while the timeline scrolls horizontally.
   return (
     <div
       style={{
-        position: "absolute",
-        top: 0,
-        left: (currentTimeMs ?? 0) * pxPerMs,
+        position: "sticky",
+        left: 0,
         height: "100%",
         width: 2,
         background: theme.danger,
         zIndex: 5,
         pointerEvents: "none",
+        marginLeft: 80, // align with track labels
       }}
     >
       <div
@@ -381,6 +402,28 @@ function Playhead({
           background: theme.danger,
           transform: "rotate(45deg)",
           transformOrigin: "center",
+        }}
+      />
+      {/* Invisible hit area for the current-time tooltip */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: -80,
+          width: 80 + 2,
+          height: "100%",
+          background: "transparent",
+          cursor: "ew-resize",
+          pointerEvents: "auto",
+        }}
+        onClick={(e) => {
+          if (!containerRef.current) return;
+          const rect = containerRef.current.getBoundingClientRect();
+          const scrollLeft = containerRef.current.scrollLeft;
+          const x = e.clientX - rect.left + scrollLeft - 80;
+          const ms = Math.max(0, Math.min((containerRef.current.scrollWidth - 80) / pxPerMs, x / pxPerMs));
+          // Import setTime from context — use window event as bridge
+          window.dispatchEvent(new CustomEvent("timeline-seek", { detail: ms }));
         }}
       />
     </div>

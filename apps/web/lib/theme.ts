@@ -16,6 +16,7 @@ export const theme = {
   speaker2: "#f472b6",
   speaker3: "#34d399",
   speaker4: "#fbbf24",
+  fontSans: "system-ui, -apple-system, sans-serif",
 } as const;
 
 export function speakerColor(index: number): string {

@@ -1,9 +1,10 @@
-"""Security + governance routers (auth, consent, audit, members)."""
+"""Security + governance routers (consent, audit, members)."""
 
+from dataclasses import asdict
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -31,54 +32,8 @@ from translator_api.security.consent import (
 )
 from translator_api.security.identity import UserIdentity
 from translator_api.security.rbac import Role, require_project_role
-from translator_api.security.session import issue_session_jwt
 
 router = APIRouter()
-
-
-@router.post("/auth/login/stub", tags=["auth"])
-async def login_stub(payload: dict, db: Session = Depends(get_db)) -> dict:
-    """Authentication endpoint; verifies user and persists account to PostgreSQL."""
-    email = payload.get("email")
-    if not isinstance(email, str) or "@" not in email:
-        raise HTTPException(status_code=400, detail="email is required")
-
-    display_name = payload.get("display_name") or email.split("@")[0]
-    now = datetime.now(timezone.utc)
-
-    user = db.query(User).filter_by(email=email).first()
-    if user is None:
-        user = User(
-            id=uuid4(),
-            email=email,
-            display_name=display_name,
-            is_admin=True,
-            created_at=now,
-            last_login_at=now,
-        )
-        db.add(user)
-    else:
-        user.last_login_at = now
-        user.is_admin = True
-    db.commit()
-
-    identity = UserIdentity(
-        user_id=str(user.id),
-        email=user.email,
-        display_name=user.display_name,
-        provider="stub",
-    )
-    token = issue_session_jwt(identity)
-    return {
-        "token": token,
-        "identity": {
-            "user_id": str(user.id),
-            "email": user.email,
-            "display_name": user.display_name,
-            "provider": "stub",
-            "is_admin": True,
-        },
-    }
 
 
 @router.get("/auth/me", response_model=dict, tags=["auth"])
@@ -218,6 +173,23 @@ async def add_member(
     member = repo.add(project_id, UUID(payload.user_id), payload.role)
     db.commit()
     return MemberResponse(user_id=str(member.user_id), role=member.role, added_at=member.added_at)
+
+
+@router.get(
+    "/projects/{project_id}/quality-mode",
+    response_model=QualityModeResponse,
+    tags=["quality"],
+)
+async def get_quality_mode(
+    project_id: UUID,
+    identity: UserIdentity = Depends(get_identity),
+    db: Session = Depends(get_db),
+) -> QualityModeResponse:
+    require_project_role(project_id, Role.VIEWER, db=db, identity=identity)
+    project = ProjectRepository(db).get(project_id)
+    mode = project.quality_mode or "balanced"
+    policy = policy_for(QualityMode(mode))
+    return QualityModeResponse(project_id=project_id, mode=mode, policy=asdict(policy))
 
 
 @router.put(

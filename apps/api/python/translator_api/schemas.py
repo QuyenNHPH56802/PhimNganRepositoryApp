@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -14,7 +13,7 @@ from translator_shared.workflows import QualityMode, WorkflowStatus
 class HealthResponse(BaseModel):
     status: str = "ok"
     version: str = "0.1.0"
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ProjectCreate(BaseModel):

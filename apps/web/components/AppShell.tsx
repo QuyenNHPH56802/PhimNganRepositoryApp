@@ -1,13 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import clsx from "clsx";
+import { useEffect, useState } from "react";
 import { theme } from "@/lib/theme";
-import { loadToken, clearToken, fetchSessionUser } from "@/lib/auth";
-import { API_BASE_URL } from "@/lib/types";
-import type { SessionUser } from "@/lib/auth";
 import { useT, SUPPORTED_LOCALES as I18N_LOCALES, LOCALE_LABELS } from "@/lib/i18n";
 
 function useNavItems() {
@@ -23,27 +20,40 @@ function useNavItems() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { t, locale, setLocale } = useT();
   const navItems = useNavItems();
-  const [user, setUser] = useState<SessionUser | null>(null);
-  const [hydrated, setHydrated] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Collapse sidebar by default on narrow viewports — opened via the burger button.
   useEffect(() => {
-    setHydrated(true);
-    let mounted = true;
-    fetchSessionUser(API_BASE_URL).then((u) => {
-      if (mounted) setUser(u);
-    });
-    return () => {
-      mounted = false;
-    };
+    function checkWidth() {
+      // Close automatically when switching to desktop so the layout doesn't
+      // get an off-screen overlay.
+      if (window.innerWidth >= 1024) setSidebarOpen(false);
+    }
+    window.addEventListener("resize", checkWidth);
+    return () => window.removeEventListener("resize", checkWidth);
   }, []);
 
-  const isLoggedIn = hydrated && !!user;
+  // Close the sidebar when navigation happens on small screens.
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: theme.bg, color: theme.text }}>
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 20,
+          }}
+        />
+      )}
       <aside
         style={{
           width: 240,
@@ -51,11 +61,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           borderRight: `1px solid ${theme.border}`,
           display: "flex",
           flexDirection: "column",
-          position: "sticky",
+          position: sidebarOpen ? "fixed" : "sticky",
           top: 0,
+          left: 0,
           height: "100vh",
           flexShrink: 0,
+          zIndex: 25,
+          transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)",
+          transition: "transform 200ms ease",
         }}
+        className="translator-sidebar"
       >
         <div
           style={{
@@ -122,74 +137,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div style={{ padding: "12px 14px", borderTop: `1px solid ${theme.border}` }}>
-          {isLoggedIn && user ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 999,
-                  background: theme.bgPanel,
-                  border: `1px solid ${theme.border}`,
-                  display: "grid",
-                  placeItems: "center",
-                  fontSize: 12,
-                  fontWeight: 700,
-                }}
-              >
-                {user.email.charAt(0).toUpperCase()}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: theme.text,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {user.email}
-                </div>
-                <button
-                  onClick={() => {
-                    clearToken();
-                    setUser(null);
-                    router.push("/login");
-                  }}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: theme.textMuted,
-                    fontSize: 11,
-                    cursor: "pointer",
-                    padding: 0,
-                    textAlign: "left",
-                  }}
-                >
-                  {t("auth.signOut", "Đăng xuất")}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <Link
-              href="/login"
-              style={{
-                display: "block",
-                padding: "8px 12px",
-                borderRadius: 6,
-                background: theme.accentStrong,
-                color: "#0b1220",
-                textAlign: "center",
-                fontSize: 13,
-                fontWeight: 700,
-                textDecoration: "none",
-              }}
-            >
-              {t("auth.signIn", "Đăng nhập")}
-            </Link>
-          )}
+        <div
+          style={{
+            padding: "12px 14px",
+            borderTop: `1px solid ${theme.border}`,
+            fontSize: 12,
+            color: theme.textMuted,
+            textAlign: "center",
+          }}
+        >
+          {t("app.version", "Phiên bản")} 1.0.0
         </div>
       </aside>
 
@@ -209,6 +166,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button
+              onClick={() => setSidebarOpen((s) => !s)}
+              aria-label="Mở menu điều hướng"
+              className="translator-burger"
+              style={{
+                background: "transparent",
+                border: `1px solid ${theme.border}`,
+                borderRadius: 6,
+                color: theme.text,
+                cursor: "pointer",
+                padding: "4px 10px",
+                fontSize: 16,
+                lineHeight: 1,
+              }}
+            >
+              ☰
+            </button>
             <Breadcrumbs pathname={pathname ?? "/"} t={t} />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

@@ -1,0 +1,11 @@
+services:
+  api:
+    profiles: ["stack"]
+  worker:
+    profiles: ["stack"]
+  tts-service:
+    profiles: ["stack"]
+  web:
+    profiles: ["stack"]
+  ollama:
+    profiles: ["stack"]

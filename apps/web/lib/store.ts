@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import type {
   TranscriptSegment,
   TranslationSegment,
@@ -31,6 +32,7 @@ interface EditorState {
   zoom: number;
   selectedSegmentId: string | null;
   selectedTrackId: string | null;
+  renderedVideoSrc: string | null;
 
   transcript: TranscriptSegment[];
   translation: TranslationSegment[];
@@ -39,7 +41,15 @@ interface EditorState {
   subtitles: SubtitleSegment[];
   audio: AudioSegment[];
 
+  // Per-type dirty flags so each panel can autosave independently without a
+  // round-trip when only one of them changed.
   dirty: boolean;
+  dirtyTranslation: boolean;
+  dirtyTranscript: boolean;
+  dirtySubtitles: boolean;
+  dirtySpeakers: boolean;
+  dirtyVoices: boolean;
+  dirtyAudio: boolean;
   autosaveStatus: "idle" | "saving" | "saved" | "error";
   lastSavedAt: number | null;
 
@@ -54,6 +64,7 @@ interface EditorState {
   setVolume: (v: number) => void;
   setZoom: (z: number) => void;
   selectSegment: (id: string | null) => void;
+  setRenderedVideoSrc: (src: string | null) => void;
 
   loadTranscript: (rows: TranscriptSegment[]) => void;
   loadTranslation: (rows: TranslationSegment[]) => void;
@@ -62,7 +73,7 @@ interface EditorState {
   loadSubtitles: (rows: SubtitleSegment[]) => void;
   loadAudio: (rows: AudioSegment[]) => void;
 
-  updateTranslationSegment: (id: string, text: string) => void;
+  updateTranslationSegment: (id: string, text?: string, status?: TranslationSegment["status"]) => void;
   updateSubtitleSegment: (id: string, patch: Partial<SubtitleSegment>) => void;
   splitSubtitle: (id: string, atMs: number) => void;
   mergeSubtitleWith: (id: string, nextId: string) => void;
@@ -74,7 +85,7 @@ interface EditorState {
   undo: () => void;
   redo: () => void;
 
-  markDirty: () => void;
+  markDirty: (kind?: "translation" | "subtitles" | "speakers" | "voices" | "audio") => void;
   markSaved: () => void;
   setAutosaveStatus: (s: EditorState["autosaveStatus"]) => void;
 }
@@ -87,7 +98,9 @@ const emptyHistory = (s: EditorState): HistorySnapshot => ({
   subtitles: s.subtitles,
 });
 
-export const useEditor = create<EditorState>((set, get) => ({
+export const useEditor = create<EditorState>()(
+  persist(
+    (set, get) => ({
   projectId: null,
   panel: "transcript",
   currentTimeMs: 0,
@@ -97,6 +110,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   zoom: 100,
   selectedSegmentId: null,
   selectedTrackId: null,
+  renderedVideoSrc: null,
 
   transcript: [],
   translation: [],
@@ -106,6 +120,12 @@ export const useEditor = create<EditorState>((set, get) => ({
   audio: [],
 
   dirty: false,
+  dirtyTranslation: false,
+  dirtyTranscript: false,
+  dirtySubtitles: false,
+  dirtySpeakers: false,
+  dirtyVoices: false,
+  dirtyAudio: false,
   autosaveStatus: "idle",
   lastSavedAt: null,
 
@@ -120,21 +140,33 @@ export const useEditor = create<EditorState>((set, get) => ({
   setVolume: (v) => set({ volume: Math.max(0, Math.min(1, v)) }),
   setZoom: (z) => set({ zoom: Math.max(10, Math.min(1000, z)) }),
   selectSegment: (id) => set({ selectedSegmentId: id }),
+  setRenderedVideoSrc: (renderedVideoSrc) => set({ renderedVideoSrc }),
 
   loadTranscript: (rows) => set({ transcript: rows }),
-  loadTranslation: (rows) => set({ translation: rows }),
-  loadSpeakers: (rows) => set({ speakers: rows }),
-  loadVoices: (rows) => set({ voices: rows }),
-  loadSubtitles: (rows) => set({ subtitles: rows }),
-  loadAudio: (rows) => set({ audio: rows }),
+  loadTranslation: (rows) => set({ translation: rows, dirtyTranslation: false }),
+  loadSpeakers: (rows) => set({ speakers: rows, dirtySpeakers: false }),
+  loadVoices: (rows) => set({ voices: rows, dirtyVoices: false }),
+  loadSubtitles: (rows) => set({ subtitles: rows, dirtySubtitles: false }),
+  loadAudio: (rows) => set({ audio: rows, dirtyAudio: false }),
 
-  updateTranslationSegment: (id, text) => {
+  updateTranslationSegment: (id, text, status) => {
     const before = emptyHistory(get());
     set((s) => ({
       translation: s.translation.map((seg) =>
-        seg.id === id ? { ...seg, text, status: "edited" } : seg,
+        seg.id === id
+          ? {
+              ...seg,
+              ...(text !== undefined && { text, display_text: text }),
+              // Preserve existing tts_text unless caller explicitly updates it.
+              ...(seg.tts_text === undefined || seg.tts_text === null || seg.tts_text === ""
+                ? { tts_text: text ?? seg.tts_text }
+                : {}),
+              status: status ?? "edited",
+            }
+          : seg,
       ),
       dirty: true,
+      dirtyTranslation: true,
       undoStack: [...s.undoStack.slice(-49), before],
       redoStack: [],
     }));
@@ -144,6 +176,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     set((s) => ({
       subtitles: s.subtitles.map((seg) => (seg.id === id ? { ...seg, ...patch } : seg)),
       dirty: true,
+      dirtySubtitles: true,
       undoStack: [...s.undoStack.slice(-49), before],
       redoStack: [],
     }));
@@ -157,14 +190,24 @@ export const useEditor = create<EditorState>((set, get) => ({
       if (!target) return {};
       if (atMs <= target.start_ms || atMs >= target.end_ms) return {};
       const left: SubtitleSegment = { ...target, end_ms: atMs };
+      const newId =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `${target.id}-${Date.now()}`;
       const right: SubtitleSegment = {
         ...target,
-        id: `${target.id}-${Date.now()}`,
+        id: newId,
         start_ms: atMs,
       };
       const next = [...s.subtitles];
       next.splice(idx, 1, left, right);
-      return { subtitles: next, dirty: true, undoStack: [...s.undoStack.slice(-49), before], redoStack: [] };
+      return {
+        subtitles: next,
+        dirty: true,
+        dirtySubtitles: true,
+        undoStack: [...s.undoStack.slice(-49), before],
+        redoStack: [],
+      };
     });
   },
   mergeSubtitleWith: (id, nextId) => {
@@ -175,7 +218,13 @@ export const useEditor = create<EditorState>((set, get) => ({
       if (!a || !b) return {};
       const merged: SubtitleSegment = { ...a, end_ms: b.end_ms, text: `${a.text} ${b.text}`.trim() };
       const next = s.subtitles.filter((x) => x.id !== nextId).map((x) => (x.id === id ? merged : x));
-      return { subtitles: next, dirty: true, undoStack: [...s.undoStack.slice(-49), before], redoStack: [] };
+      return {
+        subtitles: next,
+        dirty: true,
+        dirtySubtitles: true,
+        undoStack: [...s.undoStack.slice(-49), before],
+        redoStack: [],
+      };
     });
   },
   deleteSubtitle: (id) => {
@@ -183,6 +232,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     set((s) => ({
       subtitles: s.subtitles.filter((x) => x.id !== id),
       dirty: true,
+      dirtySubtitles: true,
       undoStack: [...s.undoStack.slice(-49), before],
       redoStack: [],
     }));
@@ -192,6 +242,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     set((s) => ({
       speakers: s.speakers.map((sp) => (sp.id === speakerId ? { ...sp, voice_profile_id: voiceProfileId ?? undefined } : sp)),
       dirty: true,
+      dirtySpeakers: true,
       undoStack: [...s.undoStack.slice(-49), before],
       redoStack: [],
     }));
@@ -201,6 +252,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     set((s) => ({
       speakers: s.speakers.map((sp) => (sp.id === id ? { ...sp, label: name } : sp)),
       dirty: true,
+      dirtySpeakers: true,
       undoStack: [...s.undoStack.slice(-49), before],
       redoStack: [],
     }));
@@ -210,6 +262,21 @@ export const useEditor = create<EditorState>((set, get) => ({
     const s = get();
     set({ undoStack: [...s.undoStack.slice(-49), emptyHistory(s)], redoStack: [] });
   },
+
+  markDirty: (kind) => {
+    if (!kind) {
+      set({ dirty: true, autosaveStatus: "idle" });
+      return;
+    }
+    const flagKey = `dirty${kind[0]!.toUpperCase()}${kind.slice(1)}` as
+      | "dirtyTranslation"
+      | "dirtySubtitles"
+      | "dirtySpeakers"
+      | "dirtyVoices"
+      | "dirtyAudio";
+    set((s) => ({ ...s, [flagKey]: true, dirty: true, autosaveStatus: "idle" }));
+  },
+
   undo: () => {
     const s = get();
     if (s.undoStack.length === 0) return;
@@ -243,7 +310,42 @@ export const useEditor = create<EditorState>((set, get) => ({
     });
   },
 
-  markDirty: () => set({ dirty: true, autosaveStatus: "idle" }),
-  markSaved: () => set({ dirty: false, autosaveStatus: "saved", lastSavedAt: Date.now() }),
+  markSaved: () =>
+    set({
+      dirty: false,
+      dirtyTranslation: false,
+      dirtyTranscript: false,
+      dirtySubtitles: false,
+      dirtySpeakers: false,
+      dirtyVoices: false,
+      dirtyAudio: false,
+      autosaveStatus: "saved",
+      lastSavedAt: Date.now(),
+    }),
   setAutosaveStatus: (autosaveStatus) => set({ autosaveStatus }),
-}));
+}),
+{
+    name: "translator-editor-state",
+    // Only persist navigation/playback state — domain arrays and undo
+    // history live in the backend / memory so we don't blow up storage.
+    partialize: (s) => ({
+      currentTimeMs: s.currentTimeMs,
+      selectedSegmentId: s.selectedSegmentId,
+      zoom: s.zoom,
+      volume: s.volume,
+      panel: s.panel,
+      projectId: s.projectId,
+    }),
+    storage: createJSONStorage(() =>
+      typeof window === "undefined"
+        ? {
+            // SSR fallback — no-op storage so server renders match client.
+            getItem: () => null,
+            setItem: () => undefined,
+            removeItem: () => undefined,
+          }
+        : window.localStorage,
+    ),
+  },
+),
+);

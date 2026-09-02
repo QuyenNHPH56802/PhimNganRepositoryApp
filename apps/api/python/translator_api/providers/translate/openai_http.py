@@ -39,8 +39,12 @@ class OpenAICompatibleHttpProvider(Provider[TranslationInput, TranslationRespons
         cfg = payload.config
         if cfg is None:
             raise CapabilityUnsupported("translate-missing-config", "OpenAI provider requires TranslationProviderConfig")
-        api_key = getattr(cfg, "api_key", None) or os.environ.get(cfg.api_key_env) or os.environ.get("OPENAI_API_KEY")
-        # Ollama / local endpoints don't require an API key
+        api_key = (
+            getattr(cfg, "api_key", None)
+            or os.environ.get("OPENAI_API_KEY")
+            or os.environ.get("TRANSLATION_OPENAI_API_KEY")
+            or (os.environ.get(cfg.api_key_env) if hasattr(cfg, "api_key_env") and cfg.api_key_env else None)
+        )
         if not api_key and "localhost" not in cfg.base_url and "127.0.0.1" not in cfg.base_url:
             raise CapabilityUnsupported("translate-missing-api-key", f"API Key is required for {cfg.base_url}")
 

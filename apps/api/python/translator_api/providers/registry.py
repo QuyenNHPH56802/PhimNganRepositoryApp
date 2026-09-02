@@ -61,6 +61,7 @@ from translator_api.providers.translate import (
     GeminiCompatibleHttpProvider,
     LocalLlmProvider,
     OpenAICompatibleHttpProvider,
+    PassthroughTranslateProvider,
 )
 from translator_api.providers.tts import (
     AzureCloudTtsProvider,
@@ -86,6 +87,7 @@ def bootstrap():
     registry.register(TRANSLATE, GeminiCompatibleHttpProvider())
     registry.register(TRANSLATE, ClaudeCompatibleHttpProvider())
     registry.register(TRANSLATE, LocalLlmProvider())
+    registry.register(TRANSLATE, PassthroughTranslateProvider())
 
     registry.register(QA, RuleBasedQaProvider())
     registry.register(SUBTITLE, CpsWrapperSubtitleProvider())

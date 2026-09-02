@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useEditor } from "@/lib/store";
 import type { Panel } from "@/lib/types";
 import { api, ApiError } from "@/lib/api";
-import { Button, Card, Input } from "@/components/ui";
+import { API_BASE_URL } from "@/lib/types";
+import { Button, Card, EmptyState, Input, ProgressBar, StatusDot } from "@/components/ui";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { Timeline } from "@/components/Timeline";
 import { TranscriptPanel } from "@/components/panels/TranscriptPanel";
@@ -16,17 +17,42 @@ import { TtsPanel } from "@/components/panels/TtsPanel";
 import { SubtitlePanel } from "@/components/panels/SubtitlePanel";
 import { AudioPanel } from "@/components/panels/AudioPanel";
 import { RenderPanel } from "@/components/panels/RenderPanel";
+import { useWorkflowStream } from "@/lib/useWorkflowStream";
+import { useShortcuts } from "@/lib/useShortcuts";
+import { useToast } from "@/lib/toast";
 import { theme } from "@/lib/theme";
 
 const tabs: { id: Panel; label: string }[] = [
-  { id: "transcript", label: "Transcript" },
-  { id: "translation", label: "Translation" },
-  { id: "speaker", label: "Speakers" },
-  { id: "voice", label: "Voices" },
-  { id: "subtitle", label: "Subtitle" },
-  { id: "audio", label: "Audio" },
+  { id: "transcript", label: "Bản ghi" },
+  { id: "translation", label: "Bản dịch" },
+  { id: "speaker", label: "Người nói" },
+  { id: "voice", label: "Giọng nói" },
+  { id: "subtitle", label: "Phụ đề" },
+  { id: "audio", label: "Âm thanh" },
   { id: "render", label: "Render" },
 ];
+
+const WORKFLOW_STEP_LABELS: Record<string, string> = {
+  ingest: "Tải & chuẩn hoá video",
+  asr: "Nhận dạng giọng nói (ASR)",
+  align: "Canh chỉnh thời gian",
+  diarize: "Phân tách người nói",
+  translate: "Dịch Trung → Việt",
+  tts: "Tổng hợp giọng nói (TTS)",
+  align_audio: "Canh chỉnh audio",
+  render: "Render video cuối",
+};
+
+const STAGE_WEIGHT: Record<string, number> = {
+  ingest: 10,
+  asr: 20,
+  align: 10,
+  diarize: 10,
+  translate: 15,
+  tts: 20,
+  align_audio: 5,
+  render: 10,
+};
 
 export default function WorkspacePage() {
   const params = useParams<{ id: string }>();
@@ -34,6 +60,8 @@ export default function WorkspacePage() {
   const panel = useEditor((s) => s.panel);
   const setPanel = useEditor((s) => s.setPanel);
   const setProject = useEditor((s) => s.setProject);
+  const renderedVideoSrc = useEditor((s) => s.renderedVideoSrc);
+  const setRenderedVideoSrc = useEditor((s) => s.setRenderedVideoSrc);
   const loadTranscript = useEditor((s) => s.loadTranscript);
   const loadTranslation = useEditor((s) => s.loadTranslation);
   const loadSpeakers = useEditor((s) => s.loadSpeakers);
@@ -48,53 +76,374 @@ export default function WorkspacePage() {
     setProject(projectId);
   }, [projectId, setProject]);
 
+  const [rawVideoSrc, setRawVideoSrc] = useState<string | undefined>(undefined);
+  const [videoMode, setVideoMode] = useState<"raw" | "rendered">("raw");
+  const [projectTitle, setProjectTitle] = useState<string>("");
+  const [titleSaving, setTitleSaving] = useState(false);
+  const [titleError, setTitleError] = useState<string | null>(null);
+  const [projectMissing, setProjectMissing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadErrors, setLoadErrors] = useState<string[]>([]);
+  const { toast } = useToast();
+
+  // Fetch project metadata once (no poll) so we can show the real title.
   useEffect(() => {
     if (!projectId) return;
     let cancelled = false;
+    setProjectTitle("");
+    setTitleError(null);
+    setProjectMissing(false);
     (async () => {
       try {
-        const [tr, ts, sp, vo, su, au] = await Promise.all([
-          api.listTranscript(projectId),
-          api.listTranslation(projectId),
-          api.listSpeakers(projectId),
-          api.listVoices(projectId),
-          api.listSubtitles(projectId),
-          api.listAudio(projectId),
-        ]);
+        const p = await api.getProject(projectId);
         if (cancelled) return;
-        loadTranscript(tr.segments);
-        loadTranslation(ts.segments);
-        loadSpeakers(sp.items);
-        loadVoices(vo.items);
-        loadSubtitles(su.segments);
-        loadAudio(au.segments);
-      } catch {
-        // Backend may not have these endpoints yet — fall back to empty state.
+        setProjectTitle(p.title ?? "");
+      } catch (err) {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.status === 404) {
+          // Project doesn't exist (or UUID malformed) — show a dedicated empty
+          // state instead of a generic placeholder title.
+          setProjectMissing(true);
+          setProjectTitle("");
+          return;
+        }
+        setProjectTitle(`Dự án ${projectId.slice(0, 6)}`);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [projectId, loadTranscript, loadTranslation, loadSpeakers, loadVoices, loadSubtitles, loadAudio]);
+  }, [projectId]);
+
+  async function saveTitle() {
+    if (!projectId) return;
+    const trimmed = projectTitle.trim();
+    if (!trimmed) {
+      setTitleError("Tiêu đề không được để trống");
+      return;
+    }
+    setTitleSaving(true);
+    setTitleError(null);
+    // Backend doesn't expose PUT /projects/{id} yet — optimistically update
+    // local title and surface a hint so the user knows about the limitation.
+    setTitleError("Lưu ý: chức năng đổi tên project qua API chưa được hỗ trợ — tiêu đề hiển thị sẽ được giữ tạm.");
+    setTitleSaving(false);
+  }
 
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
-        return;
+    if (!projectId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const result: any = await api.getAssetUrl(projectId);
+        if (cancelled) return;
+        setRawVideoSrc(result.url ?? undefined);
+        if (result.rendered_url) {
+          setRenderedVideoSrc(result.rendered_url);
+          setVideoMode("rendered");
+        }
+      } catch {
+        // No video yet — that's fine for new projects.
       }
-      const meta = e.metaKey || e.ctrlKey;
-      if (meta && e.key.toLowerCase() === "z" && !e.shiftKey) {
-        e.preventDefault();
-        undo();
-      } else if (meta && (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey))) {
-        e.preventDefault();
-        redo();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  const loadPanelData = useCallback(async () => {
+    if (!projectId) return;
+    setRefreshing(true);
+    setLoadErrors([]);
+    const errors: string[] = [];
+
+    // Helper: call a list endpoint, swallow 404 (treat as empty), surface others.
+    const fetchOrEmpty = async <T,>(
+      label: string,
+      call: () => Promise<T>,
+      onEmpty: () => void,
+      onSuccess: (data: T) => void,
+    ) => {
+      try {
+        const data = await call();
+        onSuccess(data);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) {
+          // 404 on editor endpoints means "no data yet" — empty state.
+          onEmpty();
+          return;
+        }
+        errors.push(`${label}: ${err instanceof Error ? err.message : String(err)}`);
       }
+    };
+
+    await Promise.all([
+      fetchOrEmpty(
+        "transcript",
+        () => api.listTranscript(projectId),
+        () => loadTranscript([]),
+        (data) => loadTranscript(data.segments),
+      ),
+      fetchOrEmpty(
+        "translation",
+        () => api.listTranslation(projectId),
+        () => loadTranslation([]),
+        (data) => loadTranslation(data.segments),
+      ),
+      fetchOrEmpty(
+        "speakers",
+        () => api.listSpeakers(projectId),
+        () => loadSpeakers([]),
+        (data) => loadSpeakers(data.items),
+      ),
+      fetchOrEmpty(
+        "voices",
+        () => api.listVoices(projectId),
+        () => loadVoices([]),
+        (data) => loadVoices(data.items),
+      ),
+      fetchOrEmpty(
+        "subtitles",
+        () => api.listSubtitles(projectId),
+        () => loadSubtitles([]),
+        (data) => loadSubtitles(data.segments),
+      ),
+      fetchOrEmpty(
+        "audio",
+        () => api.listAudio(projectId),
+        () => loadAudio([]),
+        (data) => loadAudio(data.segments),
+      ),
+    ]);
+
+    if (errors.length > 0) {
+      setLoadErrors(errors);
+      toast(`Một số panel không tải được: ${errors.join("; ")}`, "danger");
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo]);
+    setRefreshing(false);
+  }, [
+    projectId,
+    loadTranscript,
+    loadTranslation,
+    loadSpeakers,
+    loadVoices,
+    loadSubtitles,
+    loadAudio,
+    toast,
+  ]);
+
+  useEffect(() => {
+    loadPanelData();
+  }, [loadPanelData]);
+
+  useShortcuts([
+    { combo: "Mod+z", description: "Hoàn tác", handler: () => undo() },
+    { combo: "Mod+Shift+z", description: "Làm lại", handler: () => redo() },
+    { combo: "Mod+y", description: "Làm lại", handler: () => redo() },
+  ]);
+
+  const translation = useEditor((s) => s.translation);
+  const subtitles = useEditor((s) => s.subtitles);
+  const speakers = useEditor((s) => s.speakers);
+  const voices = useEditor((s) => s.voices);
+  const audio = useEditor((s) => s.audio);
+  const markSaved = useEditor((s) => s.markSaved);
+  const setAutosaveStatus = useEditor((s) => s.setAutosaveStatus);
+
+  // Autosave for translation — fires only when translation becomes dirty
+  useEffect(() => {
+    if (!projectId) return;
+    if (!useEditor.getState().dirtyTranslation) return;
+    const snapshot = useEditor.getState().translation;
+    const timer = setTimeout(async () => {
+      // Re-check the flag — user might have undone the change.
+      if (!useEditor.getState().dirtyTranslation) return;
+      try {
+        setAutosaveStatus("saving");
+        await api.saveTranslation(projectId, snapshot);
+        // Only clear the flag if the translation hasn't been edited again
+        // since we started saving.
+        if (useEditor.getState().translation === snapshot) {
+          useEditor.setState({ dirtyTranslation: false });
+          if (
+            !useEditor.getState().dirtySubtitles &&
+            !useEditor.getState().dirtySpeakers &&
+            !useEditor.getState().dirtyVoices &&
+            !useEditor.getState().dirtyAudio
+          ) {
+            markSaved();
+          }
+        }
+      } catch (err) {
+        console.error("Autosave translation failed:", err);
+        setAutosaveStatus("error");
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [projectId, translation, setAutosaveStatus, markSaved]);
+
+  // Autosave for subtitles — fires only when subtitles become dirty
+  useEffect(() => {
+    if (!projectId) return;
+    if (!useEditor.getState().dirtySubtitles) return;
+    const snapshot = useEditor.getState().subtitles;
+    const timer = setTimeout(async () => {
+      if (!useEditor.getState().dirtySubtitles) return;
+      try {
+        setAutosaveStatus("saving");
+        await api.saveSubtitles(projectId, snapshot);
+        if (useEditor.getState().subtitles === snapshot) {
+          useEditor.setState({ dirtySubtitles: false });
+          if (
+            !useEditor.getState().dirtyTranslation &&
+            !useEditor.getState().dirtySpeakers &&
+            !useEditor.getState().dirtyVoices &&
+            !useEditor.getState().dirtyAudio
+          ) {
+            markSaved();
+          }
+        }
+      } catch (err) {
+        console.error("Autosave subtitles failed:", err);
+        setAutosaveStatus("error");
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [projectId, subtitles, setAutosaveStatus, markSaved]);
+
+  // Autosave for speakers — fires only when speakers become dirty
+  useEffect(() => {
+    if (!projectId) return;
+    if (!useEditor.getState().dirtySpeakers) return;
+    const snapshot = useEditor.getState().speakers;
+    const timer = setTimeout(async () => {
+      if (!useEditor.getState().dirtySpeakers) return;
+      try {
+        setAutosaveStatus("saving");
+        await api.saveSpeakers(projectId, snapshot);
+        if (useEditor.getState().speakers === snapshot) {
+          useEditor.setState({ dirtySpeakers: false });
+          if (
+            !useEditor.getState().dirtyTranslation &&
+            !useEditor.getState().dirtySubtitles &&
+            !useEditor.getState().dirtyVoices &&
+            !useEditor.getState().dirtyAudio
+          ) {
+            markSaved();
+          }
+        }
+      } catch (err) {
+        console.error("Autosave speakers failed:", err);
+        setAutosaveStatus("error");
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [projectId, speakers, setAutosaveStatus, markSaved]);
+
+  // Autosave for voices — fires only when voices become dirty
+  useEffect(() => {
+    if (!projectId) return;
+    if (!useEditor.getState().dirtyVoices) return;
+    const snapshot = useEditor.getState().voices;
+    const timer = setTimeout(async () => {
+      if (!useEditor.getState().dirtyVoices) return;
+      try {
+        setAutosaveStatus("saving");
+        await api.saveVoices(projectId, snapshot);
+        if (useEditor.getState().voices === snapshot) {
+          useEditor.setState({ dirtyVoices: false });
+          if (
+            !useEditor.getState().dirtyTranslation &&
+            !useEditor.getState().dirtySubtitles &&
+            !useEditor.getState().dirtySpeakers &&
+            !useEditor.getState().dirtyAudio
+          ) {
+            markSaved();
+          }
+        }
+      } catch (err) {
+        console.error("Autosave voices failed:", err);
+        setAutosaveStatus("error");
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [projectId, voices, setAutosaveStatus, markSaved]);
+
+  // Autosave audio (no-op stub — backend has no PUT /audio, but keep the
+  // wiring symmetric so a future backend change doesn't need UI updates).
+  useEffect(() => {
+    if (!projectId) return;
+    if (!useEditor.getState().dirtyAudio) return;
+    const snapshot = useEditor.getState().audio;
+    const timer = setTimeout(async () => {
+      if (!useEditor.getState().dirtyAudio) return;
+      try {
+        setAutosaveStatus("saving");
+        await api.saveAudio(projectId, snapshot);
+        if (useEditor.getState().audio === snapshot) {
+          useEditor.setState({ dirtyAudio: false });
+          if (
+            !useEditor.getState().dirtyTranslation &&
+            !useEditor.getState().dirtySubtitles &&
+            !useEditor.getState().dirtySpeakers &&
+            !useEditor.getState().dirtyVoices
+          ) {
+            markSaved();
+          }
+        }
+      } catch (err) {
+        console.error("Autosave audio failed:", err);
+        setAutosaveStatus("error");
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [projectId, audio, setAutosaveStatus, markSaved]);
+
+  // Resolve workflow_id: prefer "project-<uuid>" pattern used by backend trigger endpoint
+  const workflowId = projectId ? `project-${projectId}` : "";
+  const { steps: workflowSteps, status: streamStatus, retryCount } = useWorkflowStream(workflowId);
+
+  const { overallPct, orderedSteps, pipelineDone } = useMemo(() => {
+    if (!workflowSteps.length) {
+      return { overallPct: 0, orderedSteps: [] as typeof workflowSteps, pipelineDone: false };
+    }
+    const ordered = [...workflowSteps].sort((a, b) => {
+      const orderA = Object.keys(STAGE_WEIGHT).indexOf(a.name);
+      const orderB = Object.keys(STAGE_WEIGHT).indexOf(b.name);
+      return (orderA === -1 ? 999 : orderA) - (orderB === -1 ? 999 : orderB);
+    });
+    let acc = 0;
+    let totalWeight = 0;
+    for (const s of ordered) {
+      const w = STAGE_WEIGHT[s.name] ?? 5;
+      totalWeight += w;
+      const ready = s.status === "ready";
+      const pct = Math.max(0, Math.min(100, s.progress_pct ?? 0));
+      acc += ready ? w : (pct / 100) * w;
+    }
+    const overall = totalWeight > 0 ? Math.round((acc / totalWeight) * 100) : 0;
+    const done = ordered.every(
+      (s) => s.status === "ready",
+    );
+    return { overallPct: overall, orderedSteps: ordered, pipelineDone: done };
+  }, [workflowSteps]);
+
+  // Auto-refresh panel data when a pipeline stage finishes (e.g. translation ready)
+  useEffect(() => {
+    if (!projectId || !pipelineDone) return;
+    // Single delayed refresh covers the case where the worker just committed
+    // its last step row but the DB transaction hasn't been read-replicated yet.
+    const timer = setTimeout(() => {
+      loadPanelData();
+      api.getAssetUrl(projectId).then((r: any) => {
+        if (r.rendered_url && r.rendered_url.startsWith("/local-assets/")) {
+          setRenderedVideoSrc(r.rendered_url);
+          setVideoMode("rendered");
+        }
+      }).catch(() => undefined);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [pipelineDone, projectId, loadPanelData]);
 
   const PanelEl = useMemo(() => {
     switch (panel) {
@@ -110,15 +459,72 @@ export default function WorkspacePage() {
   }, [panel]);
 
   const ActivePanel = PanelEl;
+  const currentVideoSrc = videoMode === "rendered" && renderedVideoSrc ? renderedVideoSrc : rawVideoSrc;
+
+  // Snapshot of all panel data — used to detect "pipeline finished but no
+  // output" and render a useful hint instead of 6 silent empty panels.
+  const transcriptCount = useEditor((s) => s.transcript.length);
+  const translationCount = useEditor((s) => s.translation.length);
+  const speakersCount = useEditor((s) => s.speakers.length);
+  const voicesCount = useEditor((s) => s.voices.length);
+  const subtitlesCount = useEditor((s) => s.subtitles.length);
+  const audioCount = useEditor((s) => s.audio.length);
+  const allPanelsEmpty =
+    transcriptCount === 0 &&
+    translationCount === 0 &&
+    speakersCount === 0 &&
+    voicesCount === 0 &&
+    subtitlesCount === 0 &&
+    audioCount === 0;
+
+  if (projectMissing) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          height: "100vh",
+          background: theme.bg,
+          color: theme.text,
+          fontFamily: theme.fontSans,
+        }}
+      >
+        <header
+          style={{
+            padding: "10px 16px",
+            borderBottom: `1px solid ${theme.border}`,
+            background: theme.bgElevated,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <strong style={{ fontSize: 14 }}>Không gian làm việc</strong>
+        </header>
+        <div style={{ flex: 1, display: "grid", placeItems: "center", padding: 24 }}>
+          <EmptyState
+            title="Project không tồn tại"
+            description={`Không tìm thấy project với mã "${projectId}". Có thể project đã bị xóa hoặc URL không đúng.`}
+            action={
+              <Button onClick={() => (window.location.href = "/projects")} variant="primary">
+                ← Quay lại danh sách project
+              </Button>
+            }
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
-        height: "100%",
-        minHeight: 0,
+        height: "100vh",
         background: theme.bg,
+        color: theme.text,
+        fontFamily: theme.fontSans,
       }}
     >
       <header
@@ -131,16 +537,125 @@ export default function WorkspacePage() {
           background: theme.bgElevated,
         }}
       >
-        <strong style={{ fontSize: 14 }}>Workspace</strong>
-        <span style={{ fontSize: 11, color: theme.textMuted }}>project: {projectId.slice(0, 8)}…</span>
+        <strong style={{ fontSize: 14 }}>Không gian làm việc</strong>
+        <span style={{ fontSize: 11, color: theme.textMuted }}>Dự án: {projectId.slice(0, 8)}…</span>
+        {renderedVideoSrc && !pipelineDone && (
+          <span style={{ fontSize: 11, background: "rgba(16, 185, 129, 0.15)", color: "#10b981", padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>
+            ✓ Video đã xử lý hoàn chỉnh
+          </span>
+        )}
         <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center", fontSize: 11, color: theme.textMuted }}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={loadPanelData}
+            disabled={refreshing}
+            title="Tải lại transcript / translation / speakers / voices / subtitles / audio"
+          >
+            {refreshing ? "⏳ Đang tải..." : "🔄 Làm mới dữ liệu"}
+          </Button>
           <span>
-            Autosave: <strong style={{ color: autosaveStatus === "saved" ? theme.success : theme.warn }}>{autosaveStatus}</strong>
+            Tự lưu: <strong style={{ color: autosaveStatus === "saved" ? theme.success : theme.warn }}>{autosaveStatus === "saved" ? "Đã lưu" : "Đang lưu..."}</strong>
           </span>
           <Button size="sm" onClick={undo}>↶ Undo</Button>
           <Button size="sm" onClick={redo}>↷ Redo</Button>
         </div>
       </header>
+
+      {/* Pipeline progress bar */}
+      {orderedSteps.length > 0 && (
+        <div
+          style={{
+            padding: "10px 16px",
+            borderBottom: `1px solid ${theme.border}`,
+            background: theme.bgElevated,
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <StatusDot
+              status={
+                pipelineDone
+                  ? "ready"
+                  : orderedSteps.some((s) => s.status === "failed")
+                    ? "failed"
+                    : "processing"
+              }
+            />
+            <strong style={{ fontSize: 13 }}>
+              {pipelineDone
+                ? "✅ Pipeline hoàn tất"
+                : "⏳ Đang xử lý pipeline"}
+            </strong>
+            <span style={{ fontSize: 11, color: theme.textMuted }}>
+              Tổng tiến độ: {overallPct}%
+              {streamStatus === "error" && " • mất kết nối stream (đang thử lại)"}
+            </span>
+          </div>
+          <ProgressBar value={overallPct} />
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+              gap: 6,
+            }}
+          >
+            {orderedSteps.map((s) => {
+              const isDone = s.status === "ready";
+              const isFailed = s.status === "failed";
+              const isProcessing = s.status === "processing";
+              const fg = isFailed
+                ? theme.danger
+                : isDone
+                  ? theme.success
+                  : isProcessing
+                    ? theme.accent
+                    : theme.textMuted;
+              return (
+                <div
+                  key={s.id || s.name}
+                  style={{
+                    padding: "6px 8px",
+                    border: `1px solid ${isFailed ? theme.danger : isDone ? "#14532d" : theme.border}`,
+                    background: theme.bgPanel,
+                    borderRadius: 6,
+                    fontSize: 11,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      color: fg,
+                      fontWeight: 600,
+                    }}
+                  >
+                    <StatusDot status={s.status} />
+                    <span>{WORKFLOW_STEP_LABELS[s.name] ?? s.name}</span>
+                  </div>
+                  <div style={{ marginTop: 4 }}>
+                    <ProgressBar value={s.progress_pct ?? 0} height={3} />
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginTop: 4,
+                      color: theme.textMuted,
+                    }}
+                  >
+                    <span style={{ textTransform: "capitalize" }}>{s.status}</span>
+                    <span>{(s.progress_pct ?? 0).toFixed(0)}%</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <nav
         style={{
@@ -174,6 +689,7 @@ export default function WorkspacePage() {
       </nav>
 
       <div
+        className="translator-workspace-grid"
         style={{
           flex: 1,
           minHeight: 0,
@@ -184,19 +700,99 @@ export default function WorkspacePage() {
           overflow: "hidden",
         }}
       >
-        <div style={{ minHeight: 0, overflowY: "auto" }}>
-          <ActivePanel />
+        <div style={{ minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+          {loadErrors.length > 0 && (
+            <div
+              style={{
+                background: "#450a0a",
+                color: theme.danger,
+                padding: "8px 12px",
+                borderRadius: 6,
+                fontSize: 12,
+                border: "1px solid #7f1d1d",
+              }}
+            >
+              ❌ Một số panel không tải được: {loadErrors.join("; ")}
+            </div>
+          )}
+          {pipelineDone && allPanelsEmpty ? (
+            <EmptyState
+              title="Pipeline hoàn tất nhưng chưa có dữ liệu"
+              description="Worker đã báo ready, nhưng 6 panel vẫn rỗng. Thử làm mới dữ liệu, hoặc mở log worker để kiểm tra."
+              action={
+                <Button variant="primary" onClick={loadPanelData} disabled={refreshing}>
+                  {refreshing ? "⏳ Đang tải..." : "🔄 Làm mới dữ liệu"}
+                </Button>
+              }
+            />
+          ) : (
+            <ActivePanel />
+          )}
         </div>
         <div style={{ minHeight: 0, display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ flex: "0 0 50%", minHeight: 280 }}>
-            <VideoPlayer />
+          {renderedVideoSrc && (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <Button
+                size="sm"
+                variant={videoMode === "rendered" ? "primary" : "ghost"}
+                onClick={() => setVideoMode("rendered")}
+              >
+                ✨ Video Đã Xử Lý / Lồng Tiếng
+              </Button>
+              <Button
+                size="sm"
+                variant={videoMode === "raw" ? "primary" : "ghost"}
+                onClick={() => setVideoMode("raw")}
+              >
+                🎬 Video Gốc
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => {
+                  if (renderedVideoSrc) {
+                    window.open(renderedVideoSrc, "_blank");
+                  }
+                }}
+              >
+                📥 Tải Video MP4
+              </Button>
+            </div>
+          )}
+          <div style={{ flex: "1 1 50%", minHeight: 280, display: "flex", flexDirection: "column" }}>
+            <VideoPlayer src={currentVideoSrc} />
           </div>
-          <Card title="Project meta" padded>
+          <Card title="Thông tin dự án" padded>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 12 }}>
-              <Field label="Title"><Input defaultValue={`Project ${projectId.slice(0, 6)}`} /></Field>
-              <Field label="Quality"><Input defaultValue="balanced" disabled /></Field>
-              <Field label="Source lang"><Input defaultValue="zh" disabled /></Field>
-              <Field label="Target lang"><Input defaultValue="vi" disabled /></Field>
+              <Field label="Tiêu đề">
+                <div style={{ display: "flex", gap: 6 }}>
+                  <Input
+                    value={projectTitle}
+                    onChange={(e) => setProjectTitle(e.target.value)}
+                    placeholder="Tiêu đề dự án"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={saveTitle}
+                    disabled={titleSaving || !projectTitle.trim()}
+                    title="Lưu tiêu đề"
+                  >
+                    💾
+                  </Button>
+                </div>
+                {titleError && (
+                  <div style={{ marginTop: 4, fontSize: 11, color: theme.warn }}>{titleError}</div>
+                )}
+              </Field>
+              <Field label="Chế độ chất lượng">
+                <Input defaultValue="Cân bằng" disabled />
+              </Field>
+              <Field label="Ngôn ngữ nguồn">
+                <Input defaultValue="Tiếng Trung (ZH)" disabled />
+              </Field>
+              <Field label="Ngôn ngữ đích">
+                <Input defaultValue="Tiếng Việt (VI)" disabled />
+              </Field>
             </div>
           </Card>
         </div>

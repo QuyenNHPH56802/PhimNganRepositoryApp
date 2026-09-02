@@ -3,6 +3,18 @@
 import { API_BASE_URL } from "./types";
 import { loadToken } from "./auth";
 
+/** Convert a relative `/local-assets/...` path returned by the backend into a
+ * URL the browser can fetch. When the web container cannot reach the API
+ * directly (typical Docker setup), route through the Next.js proxy. */
+function toAssetProxyUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (value.startsWith("/local-assets/")) {
+    return `/api/proxy-video?path=${encodeURIComponent(value)}`;
+  }
+  // Already absolute (http(s)://...) or a path the browser can resolve.
+  return value;
+}
+
 export class ApiError extends Error {
   status: number;
   detail?: unknown;
@@ -32,12 +44,17 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     headers["Content-Type"] = "application/json";
   }
 
+  // GETs use the browser cache so identical refreshes don't re-hit the API;
+  // mutations (POST/PUT/DELETE/PATCH) always bypass cache to avoid stale reads.
+  const method = (opts.method ?? "GET").toUpperCase();
+  const isMutation = method !== "GET";
+
   const res = await fetch(url, {
-    method: opts.method ?? "GET",
+    method,
     headers,
     body: opts.body === undefined ? undefined : opts.body instanceof FormData ? opts.body : JSON.stringify(opts.body),
     signal: opts.signal,
-    cache: "no-store",
+    cache: isMutation ? "no-store" : "default",
   });
 
   if (res.status === 204) return undefined as T;
@@ -48,9 +65,6 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
 
   if (!res.ok) {
     const detail = isJson ? payload?.detail ?? payload : payload;
-    if (res.status === 401 && typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
-      window.location.href = "/login";
-    }
     throw new ApiError(res.status, `${res.status} ${res.statusText}`, detail);
   }
   return payload as T;
@@ -74,6 +88,17 @@ import type {
 export const api = {
   capabilities: () => request<Capabilities>("/capabilities"),
 
+  getAssetUrl: (projectId: string) =>
+    request<{ url: string | null; asset_id: string | null; rendered_url?: string | null }>(`/projects/${projectId}/asset-url`).catch(
+      () => ({ url: null, asset_id: null, rendered_url: null }),
+    ).then((r) => ({
+      ...r,
+      // Backend returns relative /local-assets/... paths; convert to a URL the
+      // browser can fetch through Next's proxy when web runs in Docker.
+      url: toAssetProxyUrl(r.url),
+      rendered_url: toAssetProxyUrl(r.rendered_url ?? null),
+    })),
+
   listProjects: () =>
     request<{ items: Project[]; total: number }>("/projects").then((r) => r.items),
   createProject: (body: {
@@ -84,6 +109,8 @@ export const api = {
     language_profile: string;
   }) => request<Project>("/projects", { method: "POST", body }),
   getProject: (id: string) => request<Project>(`/projects/${id}`),
+  deleteProject: (id: string) =>
+    request<void>(`/projects/${id}`, { method: "DELETE" }),
 
   presignAsset: (projectId: string, body: { filename: string; mime: string; size: number }) =>
     request<AssetPresignResponse>(`/projects/${projectId}/assets:presign`, {
@@ -116,43 +143,101 @@ export const api = {
   ) => request<ProviderConfig>(`/projects/${projectId}/provider-configs`, { method: "PUT", body }),
 
   listTranscript: (projectId: string) =>
-    request<{ segments: TranscriptSegment[] }>(`/projects/${projectId}/transcript`).catch(
-      () => ({ segments: [] as TranscriptSegment[] }),
-    ),
+    request<{ segments: TranscriptSegment[] }>(`/projects/${projectId}/transcript`),
   saveTranscript: (projectId: string, segments: TranscriptSegment[]) =>
     request<{ ok: true }>(`/projects/${projectId}/transcript`, { method: "PUT", body: { segments } }),
 
   listTranslation: (projectId: string) =>
-    request<{ segments: TranslationSegment[] }>(`/projects/${projectId}/translation`).catch(
-      () => ({ segments: [] as TranslationSegment[] }),
-    ),
+    request<{ segments: TranslationSegment[] }>(`/projects/${projectId}/translation`),
   saveTranslation: (projectId: string, segments: TranslationSegment[]) =>
     request<{ ok: true }>(`/projects/${projectId}/translation`, { method: "PUT", body: { segments } }),
 
   listSpeakers: (projectId: string) =>
-    request<{ items: Speaker[] }>(`/projects/${projectId}/speakers`).catch(() => ({ items: [] as Speaker[] })),
+    request<{ items: Speaker[] }>(`/projects/${projectId}/speakers`),
   saveSpeakers: (projectId: string, speakers: Speaker[]) =>
     request<{ ok: true }>(`/projects/${projectId}/speakers`, { method: "PUT", body: { speakers } }),
 
   listVoices: (projectId: string) =>
-    request<{ items: VoiceProfile[] }>(`/projects/${projectId}/voices`).catch(() => ({ items: [] as VoiceProfile[] })),
+    request<{ items: VoiceProfile[] }>(`/projects/${projectId}/voices`),
   saveVoices: (projectId: string, voices: VoiceProfile[]) =>
     request<{ ok: true }>(`/projects/${projectId}/voices`, { method: "PUT", body: { voices } }),
 
+  // Admin endpoints always go through the Next.js proxy so the backend can
+  // stay internal and the request can carry the user's session cookie or
+  // bearer token in one place.
   listAdminVoiceProfiles: (projectId?: string) =>
-    request<VoiceProfile[]>(`/admin/voice-profiles${projectId ? `?project_id=${projectId}` : ""}`).catch(
-      () => [] as VoiceProfile[],
-    ),
+    request<VoiceProfile[]>(`/api/admin/voice-profiles${projectId ? `?project_id=${projectId}` : ""}`),
 
   listSubtitles: (projectId: string) =>
-    request<{ segments: SubtitleSegment[] }>(`/projects/${projectId}/subtitles`).catch(
-      () => ({ segments: [] as SubtitleSegment[] }),
-    ),
+    request<{ segments: SubtitleSegment[] }>(`/projects/${projectId}/subtitles`),
   saveSubtitles: (projectId: string, segments: SubtitleSegment[]) =>
     request<{ ok: true }>(`/projects/${projectId}/subtitles`, { method: "PUT", body: { segments } }),
 
   listAudio: (projectId: string) =>
-    request<{ segments: AudioSegment[] }>(`/projects/${projectId}/audio`).catch(
-      () => ({ segments: [] as AudioSegment[] }),
+    request<{ segments: AudioSegment[] }>(`/projects/${projectId}/audio`),
+  // Audio segments are derived from TTS jobs; they don't have a user-editable
+  // PUT endpoint. Keep this stub so callers can wire autosave symmetrically.
+  saveAudio: (_projectId: string, _segments: AudioSegment[]) =>
+    Promise.resolve({ ok: true as const }),
+
+  // Translation
+  regenerateTranslation: (projectId: string, segmentId: string) =>
+    request<{ id: string; display_text: string; tts_text: string }>(
+      `/projects/${projectId}/translation/${segmentId}/regenerate`,
+      { method: "POST" }
+    ).catch(() => null),
+
+  // TTS
+  generateTts: (projectId: string, segmentIds: string[], voiceId?: string) =>
+    request<{ ok: boolean; segments: AudioSegment[] }>(`/projects/${projectId}/tts/generate`, {
+      method: "POST",
+      body: { segment_ids: segmentIds, voice_id: voiceId },
+    }),
+
+  previewTts: (projectId: string, text: string, voiceId?: string) =>
+    request<{ audio_url: string | null; error?: string }>(`/projects/${projectId}/tts/preview`, {
+      method: "POST",
+      body: { text, voice_id: voiceId },
+    }),
+
+  // Render video
+  renderVideo: (projectId: string, config: {
+    resolution?: string;
+    codec?: string;
+    audio_mode?: string;
+    burn_subtitle?: boolean;
+    quality_mode?: string;
+  }) =>
+    request<{ ok: boolean; rendered_url?: string | null; storage_key?: string; error?: string }>(
+      `/projects/${projectId}/render`,
+      { method: "POST", body: config }
     ),
+
+  // Subtitle
+  generateSubtitles: (projectId: string) =>
+    request<{ ok: true; segments: SubtitleSegment[] }>(`/projects/${projectId}/subtitles/generate`, {
+      method: "POST",
+    }),
+
+  // Audio
+  autoMixAudio: (projectId: string, gains: Record<string, number>) =>
+    request<{ ok: true; gains: Record<string, number> }>(`/projects/${projectId}/audio/auto-mix`, {
+      method: "POST",
+      body: { gains },
+    }),
+
+  renderAudioMix: (projectId: string, gains: Record<string, number>) =>
+    request<{ ok: true; audio_url: string }>(`/projects/${projectId}/audio/render`, {
+      method: "POST",
+      body: { gains },
+    }),
+
+  // Voice
+  createVoiceProfile: (projectId: string, body: Partial<VoiceProfile>) =>
+    request<VoiceProfile>(`/projects/${projectId}/voices`, { method: "POST", body }),
+  previewVoice: (projectId: string, voiceId: string, text?: string) =>
+    request<{ audio_url: string }>(`/projects/${projectId}/voices/${voiceId}/preview`, {
+      method: "POST",
+      body: { text: text ?? "Xin chào, đây là giọng nói mẫu." },
+    }),
 };

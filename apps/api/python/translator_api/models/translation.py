@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from translator_api.models import Base
 
@@ -33,6 +33,9 @@ class TranslationVersion(Base):
     signature: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    # Relationship for eager loading
+    segments: Mapped[list["TranslationSegment"]] = relationship("TranslationSegment", lazy="raise")
 
 
 class TranslationSegment(Base):

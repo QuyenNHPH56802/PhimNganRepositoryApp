@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { Badge, Button, Card, Input, Select } from "@/components/ui";
 import { theme } from "@/lib/theme";
@@ -23,6 +23,10 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"
 export default function SettingsPage() {
   const [configs, setConfigs] = useState<ProviderConfig[]>([]);
   const [models, setModels] = useState<ModelItem[]>([]);
+  const modelsRef = useRef<ModelItem[]>([]);
+  // Keep the ref pointing at the latest snapshot so the poll interval can
+  // read the current list without re-creating the timer on every state update.
+  modelsRef.current = models;
   const [message, setMessage] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [installingId, setInstallingId] = useState<string | null>(null);
@@ -106,9 +110,25 @@ export default function SettingsPage() {
   }
 
   useEffect(() => {
-    void loadModels();
-    const interval = setInterval(loadModels, 2500);
-    return () => clearInterval(interval);
+    let cancelled = false;
+    const interval = setInterval(async () => {
+      if (cancelled) return;
+      // Stop polling once the model list is loaded and no model is still
+      // installing — at that point there's nothing useful to refresh.
+      const stillInstalling = modelsRef.current.some((m) => m.status === "installing");
+      if (modelsRef.current.length > 0 && !stillInstalling) {
+        clearInterval(interval);
+        return;
+      }
+      await loadModels();
+    }, 2500);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+    // We intentionally don't depend on `models` — the interval checks the
+    // latest snapshot via `modelsRef` so we don't restart on every update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -242,7 +262,10 @@ export default function SettingsPage() {
             boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
           }}
         >
-          {message}
+          <div>{message}</div>
+          <div style={{ marginTop: 6, fontSize: 11, fontWeight: 500, opacity: 0.85 }}>
+            Phạm vi lưu: {projectId ? `Dự án ${projectId.slice(0, 8)}…` : "Hệ thống (system-wide)"}
+          </div>
         </div>
       )}
 

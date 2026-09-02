@@ -34,7 +34,7 @@ class ProjectMember(Base):
     project_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True)
     user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True)
     role: Mapped[str] = mapped_column(String(16), nullable=False, default="editor")
-    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class ProjectSettings(Base):

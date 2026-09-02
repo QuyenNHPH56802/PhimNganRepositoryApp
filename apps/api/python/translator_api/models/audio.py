@@ -33,3 +33,4 @@ class AudioSegment(Base):
     storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)
     source: Mapped[str] = mapped_column(String(32), nullable=False)
     signature: Mapped[str] = mapped_column(String(128), nullable=False)
+    translation_segment_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("translation_segments.id", ondelete="SET NULL"), nullable=True)

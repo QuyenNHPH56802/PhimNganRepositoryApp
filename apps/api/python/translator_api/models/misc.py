@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String
@@ -34,4 +34,4 @@ class AuditLog(Base):
     entity_id: Mapped[str] = mapped_column(String(64), nullable=False)
     action: Mapped[str] = mapped_column(String(64), nullable=False)
     payload: Mapped[dict | None] = mapped_column(JSONB)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

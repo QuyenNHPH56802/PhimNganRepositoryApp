@@ -23,10 +23,6 @@ export default function DashboardPage() {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        if (err instanceof ApiError && err.status === 401) {
-          if (typeof window !== "undefined") window.location.href = "/login";
-          return;
-        }
         setError(err instanceof ApiError ? `${err.status} ${err.message}` : String(err));
       })
       .finally(() => {
@@ -44,7 +40,7 @@ export default function DashboardPage() {
     ),
   ).length;
   const failed = projects.filter((p) => p.status === "failed").length;
-  const completed = projects.filter((p) => p.status === "completed").length;
+  const completed = projects.filter((p) => p.status === "ready").length;
 
   return (
     <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16, minHeight: "100%" }}>

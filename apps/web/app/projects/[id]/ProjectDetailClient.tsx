@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
@@ -33,13 +33,23 @@ export default function ProjectDetailClient({ projectId }: { projectId: string }
     try {
       const p = await api.getProject(projectId);
       setProject({ title: p.title, status: p.status, quality_mode: p.quality_mode });
+      // Try to get workflow by using the expected workflow_id pattern: project-{projectId}
       try {
-        const wf = await api.getWorkflow(projectId, projectId);
+        const wf = await api.getWorkflow(projectId, `project-${projectId}`);
         setWorkflow(wf);
-        const stepRows = await api.listWorkflowSteps(projectId, projectId);
+        const stepRows = await api.listWorkflowSteps(projectId, wf.workflow_id);
         setSteps(stepRows);
+        // Stop polling once the workflow reaches a terminal state (success or
+        // failure) so we don't keep hitting the backend after the job ended.
+        const terminal = ["ready", "archived", "failed"];
+        if (terminal.includes(wf.status) && pollTimerRef.current !== null) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
       } catch {
         // no workflow yet
+        setWorkflow(null);
+        setSteps([]);
       }
       setError(null);
     } catch (err) {
@@ -47,10 +57,14 @@ export default function ProjectDetailClient({ projectId }: { projectId: string }
     }
   }
 
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, 5000);
-    return () => clearInterval(id);
+    pollTimerRef.current = setInterval(refresh, 5000);
+    return () => {
+      if (pollTimerRef.current !== null) clearInterval(pollTimerRef.current);
+    };
   }, [projectId]);
 
   async function triggerWorkflow(quality: "fast" | "balanced" | "high") {
@@ -123,7 +137,7 @@ export default function ProjectDetailClient({ projectId }: { projectId: string }
                 <tr key={s.id} style={{ borderBottom: `1px solid ${theme.border}` }}>
                   <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600 }}>{s.name}</td>
                   <td style={{ padding: "10px 12px", fontSize: 12 }}>
-                    <Badge tone={s.status === "completed" ? "success" : s.status === "failed" ? "danger" : "info"}>
+                    <Badge tone={s.status === "ready" ? "success" : s.status === "failed" ? "danger" : "info"}>
                       {s.status}
                     </Badge>
                   </td>

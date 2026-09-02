@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import clsx from "clsx";
 import { theme } from "@/lib/theme";
 
@@ -253,6 +254,8 @@ export function StatusDot({ status }: { status: string }) {
   const color = map[status.toLowerCase()] ?? theme.textDim;
   return (
     <span
+      role="status"
+      aria-label={`Trạng thái: ${status}`}
       style={{
         display: "inline-block",
         width: 8,
@@ -263,5 +266,176 @@ export function StatusDot({ status }: { status: string }) {
         marginRight: 6,
       }}
     />
+  );
+}
+
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  width = 460,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+  width?: number;
+}) {
+  // Lock body scroll and close on Escape for a11y parity with native dialogs.
+  React.useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.documentElement.style.overflow;
+    document.documentElement.classList.add("modal-open");
+    document.documentElement.style.overflow = "hidden";
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.documentElement.classList.remove("modal-open");
+      document.documentElement.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(2,6,23,0.65)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: theme.bgPanel,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 10,
+          width,
+          maxWidth: "calc(100vw - 32px)",
+          maxHeight: "calc(100vh - 64px)",
+          overflow: "auto",
+          boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
+        }}
+      >
+        <div
+          style={{
+            padding: "12px 16px",
+            borderBottom: `1px solid ${theme.border}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "#0d172e",
+          }}
+        >
+          <strong style={{ fontSize: 14 }}>{title}</strong>
+          <button
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: theme.textMuted,
+              fontSize: 18,
+              cursor: "pointer",
+              lineHeight: 1,
+            }}
+            aria-label="Đóng"
+          >
+            ×
+          </button>
+        </div>
+        <div style={{ padding: 16 }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+export function ErrorBanner({
+  message,
+  onRetry,
+  onDismiss,
+}: {
+  message: string;
+  onRetry?: () => void;
+  onDismiss?: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      style={{
+        background: "#450a0a",
+        color: theme.danger,
+        padding: 12,
+        borderRadius: 8,
+        fontSize: 13,
+        border: "1px solid #7f1d1d",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+      }}
+    >
+      <span style={{ flex: 1 }}>❌ {message}</span>
+      {onRetry && (
+        <Button size="sm" variant="ghost" onClick={onRetry}>
+          🔄 Thử lại
+        </Button>
+      )}
+      {onDismiss && (
+        <Button size="sm" variant="ghost" onClick={onDismiss} aria-label="Đóng thông báo lỗi">
+          ✕
+        </Button>
+      )}
+    </div>
+  );
+}
+
+export function ProgressBar({
+  value,
+  hint,
+  height = 6,
+}: {
+  value: number;
+  hint?: string;
+  height?: number;
+}) {
+  const clamped = Math.max(0, Math.min(100, value));
+  return (
+    <div>
+      {hint && (
+        <div style={{ fontSize: 11, color: theme.textMuted, marginBottom: 4 }}>{hint}</div>
+      )}
+      <div
+        role="progressbar"
+        aria-valuenow={Math.round(clamped)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        style={{
+          height,
+          background: theme.bgElevated,
+          borderRadius: height / 2,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${clamped}%`,
+            height: "100%",
+            background: theme.accent,
+            transition: "width 250ms ease",
+          }}
+        />
+      </div>
+    </div>
   );
 }

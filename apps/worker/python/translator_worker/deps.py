@@ -15,7 +15,7 @@ def make_worker_session_factory() -> sessionmaker[Session]:
     settings = get_settings()
     from sqlalchemy import create_engine
 
-    engine = create_engine(settings.database_url, pool_pre_ping=True, future=True)
+    engine = create_engine(settings.database_url, pool_pre_ping=True, future=True, client_encoding="utf8")
     return sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
 
@@ -29,7 +29,8 @@ def session_scope(factory: sessionmaker[Session]) -> Iterator[Session]:
 
 def build_storage():
     settings = get_settings()
-    if StorageProviderId(settings.storage_provider_id) == StorageProviderId.LOCAL_FS:
+    provider_str = (settings.storage_provider_id or "").lower()
+    if provider_str in {"local", "local_fs", "local_storage"}:
         return LocalStorage()
     return S3CompatibleStorage()
 

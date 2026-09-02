@@ -7,7 +7,7 @@ from translator_api.security.session import (
     issue_session_jwt,
     verify_session_jwt,
 )
-from translator_api.security.rbac import Role, require_project_role, require_role
+from translator_api.security.rbac import Role, require_project_role
 from translator_api.security.csrf import CsrfTokenError, issue_csrf_token, verify_csrf_token
 from translator_api.security.consent import (
     ConsentActionError,
@@ -28,7 +28,6 @@ __all__ = [
     "issue_session_jwt",
     "request_consent",
     "require_project_role",
-    "require_role",
     "revoke_consent",
     "verify_csrf_token",
     "verify_session_jwt",

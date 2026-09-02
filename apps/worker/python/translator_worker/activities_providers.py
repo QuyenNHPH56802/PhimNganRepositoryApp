@@ -61,7 +61,7 @@ async def asr_transcribe(project_id: str, asset_id: str | None = None) -> dict:
         response: AsrResponse = await provider.run(payload, ctx=ctx)
         existing = transcript_repo.find_by_signature(asset.id, response.signature.fingerprint())
         if existing is None:
-            transcript_repo.add(response_to_transcript(response, asset.id, session))
+            response_to_transcript(response, asset.id, session)
             session.commit()
         return response.model_dump()
     finally:
@@ -102,28 +102,32 @@ async def diarize_segments(project_id: str, asset_id: str | None = None) -> dict
 
 def response_to_transcript(response: AsrResponse, asset_id: UUID, session) -> "Transcript":  # type: ignore[name-defined]
     from translator_api.models import Transcript, TranscriptSegment, TranscriptWord
+    from uuid import uuid4
 
+    transcript_id = uuid4()
     transcript = Transcript(
+        id=transcript_id,
         asset_id=asset_id,
         language_detected=response.language,
         language_profile="zh-vi",
         model_id=response.model_id,
         signature=response.signature.fingerprint(),
+        created_at=_now(),
     )
-    segments: list[TranscriptSegment] = []
-    words: list[TranscriptWord] = []
+    session.add(transcript)
+    session.flush()
+
     for seg in response.segments:
+        seg_id = uuid4()
         s = TranscriptSegment(
-            transcript_id=transcript.id,
+            id=seg_id,
+            transcript_id=transcript_id,
             idx=seg.idx,
             start_ms=seg.start_ms,
             end_ms=seg.end_ms,
             raw_text=seg.text,
         )
-        segments.append(s)
-    for w in response.words:
-        words.append(TranscriptWord(segment_id=transcript.id, idx=w.idx, text=w.text, start_ms=w.start_ms, end_ms=w.end_ms, confidence=w.confidence))
-    transcript.segments = segments
-    transcript.words = words
+        session.add(s)
+
     session.flush()
     return transcript

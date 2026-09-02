@@ -119,5 +119,28 @@
     "workflowRunning": "Workflow running…",
     "workflowDone": "Workflow completed",
     "workflowFailed": "Workflow failed"
+  },
+  "panel": {
+    "empty": {
+      "transcript": "Run ASR to generate a transcript from the audio.",
+      "translation": "Run Translation to generate the Vietnamese version.",
+      "speaker": "Run Diarization to detect speakers in the audio.",
+      "voice": "Create a voice profile from a TTS provider or clone a real voice.",
+      "subtitle": "Run the Subtitle step from the project page to generate Vietnamese subtitles.",
+      "audio": "Run TTS to generate dubbed voice segments first.",
+      "render": "Configure render options below and run the pipeline."
+    },
+    "noFilterMatch": "No segments match the current filter.",
+    "searchPlaceholder": "Search by content / speaker / timestamp",
+    "voiceNameRequired": "Voice name is required"
+  },
+  "toast": {
+    "createVoiceOk": "Voice profile created",
+    "createVoiceFail": "Cannot create voice",
+    "updateVoiceOk": "Voice profile updated",
+    "updateVoiceFail": "Cannot update voice",
+    "previewFail": "Cannot preview voice",
+    "noProjectSelected": "Select a project first",
+    "noAudioUrl": "No audio URL returned"
   }
 }

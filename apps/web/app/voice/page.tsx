@@ -8,6 +8,12 @@ import { theme } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
 import type { VoiceProfile } from "@/lib/types";
 
+const CONSENT_LABELS: Record<string, string> = {
+  granted: "Đã đồng ý",
+  denied: "Từ chối",
+  pending: "Chờ xác nhận",
+};
+
 export default function VoicePage() {
   const { t } = useT();
   const [items, setItems] = useState<VoiceProfile[]>([]);
@@ -59,7 +65,7 @@ export default function VoicePage() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#0d172e" }}>
-                {["Tên Người nói / Voice", "Provider & Model", "Trạng thái Consent"].map((h) => (
+                {["Speaker", "Project", "Consent", "Reference Audio", "Profile ID"].map((h) => (
                   <th
                     key={h}
                     style={{
@@ -81,12 +87,28 @@ export default function VoicePage() {
             <tbody>
               {items.map((p) => (
                 <tr key={p.id} style={{ borderBottom: `1px solid ${theme.border}` }}>
-                  <td style={{ padding: "10px 14px", fontWeight: 600 }}>{p.name || p.speaker_id || p.id.slice(0, 8)}</td>
-                  <td style={{ padding: "10px 14px", fontSize: 12, color: theme.textMuted }}>{p.provider_id} • {p.model_id}</td>
+                  <td style={{ padding: "10px 14px", fontWeight: 600, fontSize: 13 }}>
+                    {p.speaker_id ? p.speaker_id.slice(0, 12) + "…" : <em style={{ color: theme.textMuted }}>Chưa gán</em>}
+                  </td>
+                  <td style={{ padding: "10px 14px", fontSize: 11, color: theme.textMuted, fontFamily: "monospace" }}>
+                    {p.project_id.slice(0, 8)}…
+                  </td>
                   <td style={{ padding: "10px 14px" }}>
-                    <span style={{ color: p.consent_status === "granted" ? theme.success : theme.warn }}>
-                      {p.consent_status}
+                    <span
+                      style={{
+                        color: p.consent_status === "granted" ? theme.success : p.consent_status === "revoked" ? theme.danger : theme.warn,
+                        fontWeight: 600,
+                        fontSize: 12,
+                      }}
+                    >
+                      {CONSENT_LABELS[p.consent_status ?? ""] ?? p.consent_status ?? "Chưa rõ"}
                     </span>
+                  </td>
+                  <td style={{ padding: "10px 14px", fontSize: 11, color: theme.textMuted, fontFamily: "monospace" }}>
+                    {p.reference_audio_key ?? "—"}
+                  </td>
+                  <td style={{ padding: "10px 14px", fontSize: 11, color: theme.textMuted, fontFamily: "monospace" }}>
+                    {p.id.slice(0, 8)}…
                   </td>
                 </tr>
               ))}

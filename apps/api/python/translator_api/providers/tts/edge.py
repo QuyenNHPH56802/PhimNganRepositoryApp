@@ -96,8 +96,13 @@ def resolve_voice(voice_profile_id: str | None) -> str:
         return DEFAULT_VOICE
     if voice_profile_id in VOICE_MAP:
         return VOICE_MAP[voice_profile_id]
-    if "-" in voice_profile_id and len(voice_profile_id) >= 6:
-        return voice_profile_id
+    # Valid edge-tts voices follow pattern: language-REGION-VoiceName (e.g., vi-VN-HoaiMyNeural)
+    # They must have at least 2 dashes and contain region+voice name
+    if voice_profile_id.count("-") >= 2:
+        # Check if it starts with a valid language code pattern
+        parts = voice_profile_id.split("-")
+        if len(parts) >= 3 and len(parts[0]) == 2 and parts[0].isalpha():
+            return voice_profile_id
     return DEFAULT_VOICE
 
 
