@@ -30,6 +30,11 @@ export async function GET(): Promise<NextResponse> {
       healthz.value.ok &&
       readyz.status === "fulfilled" &&
       readyz.value.ok,
+    // Build identity — exposed so the EnvBadge can show "development · abc1234"
+    // without an extra round trip. Safe to expose (no secrets).
+    env: process.env.NEXT_PUBLIC_APP_ENV ?? process.env.NODE_ENV ?? "development",
+    sha: process.env.NEXT_PUBLIC_GIT_SHA ?? "",
+    build: process.env.NEXT_PUBLIC_BUILD_ID ?? "",
   };
 
   return NextResponse.json(body, { status: body.ok ? 200 : 503 });

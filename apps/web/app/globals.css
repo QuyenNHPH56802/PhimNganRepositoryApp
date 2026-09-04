@@ -127,3 +127,31 @@ html.modal-open {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* Skeleton shimmer — sweeps a brighter gradient band across placeholder blocks
+ * to indicate loading state. */
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-elevated) 0px,
+    var(--color-border) 40px,
+    var(--color-bg-elevated) 80px
+  ) !important;
+  background-size: 200px 100% !important;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none !important;
+  }
+}

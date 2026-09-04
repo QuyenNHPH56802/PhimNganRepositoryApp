@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
-import { Button, Card, EmptyState, Select } from "@/components/ui";
+import { Button, Card, EmptyState, Select, SkeletonPanel } from "@/components/ui";
 import { theme } from "@/lib/theme";
 import { useEditor } from "@/lib/store";
 import { humanizeError } from "@/lib/errorMessage";
@@ -40,6 +40,7 @@ export function TtsPanel() {
   const voices = useEditor((s) => s.voices);
   const speakers = useEditor((s) => s.speakers);
   const audio = useEditor((s) => s.audio);
+  const isInitialLoading = useEditor((s) => s.isInitialLoading);
   const loadAudio = useEditor((s) => s.loadAudio);
   const setTime = useEditor((s) => s.setTime);
   const projectId = useEditor((s) => s.projectId);
@@ -54,6 +55,10 @@ export function TtsPanel() {
   useEffect(() => {
     saveVoiceAssignments(voiceAssignments);
   }, [voiceAssignments]);
+
+  if (isInitialLoading && translation.length === 0) {
+    return <SkeletonPanel title="Tổng hợp giọng nói" rows={4} />;
+  }
 
   if (translation.length === 0) {
     return (

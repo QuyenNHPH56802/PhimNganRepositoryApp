@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useEditor } from "@/lib/store";
-import { Button, Card, EmptyState, Input, Select } from "@/components/ui";
+import { Button, Card, EmptyState, Input, Select, SkeletonPanel } from "@/components/ui";
 import { speakerColor, theme } from "@/lib/theme";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/toast";
@@ -11,6 +11,7 @@ import { humanizeError } from "@/lib/errorMessage";
 export function SpeakerPanel() {
   const speakers = useEditor((s) => s.speakers);
   const voices = useEditor((s) => s.voices);
+  const isInitialLoading = useEditor((s) => s.isInitialLoading);
   const renameSpeaker = useEditor((s) => s.renameSpeaker);
   const assignSpeakerToVoice = useEditor((s) => s.assignSpeakerToVoice);
   const projectId = useEditor((s) => s.projectId);
@@ -50,6 +51,10 @@ export function SpeakerPanel() {
     } finally {
       setPreviewingId(null);
     }
+  }
+
+  if (isInitialLoading && speakers.length === 0) {
+    return <SkeletonPanel title="Người nói" rows={3} />;
   }
 
   if (speakers.length === 0) {

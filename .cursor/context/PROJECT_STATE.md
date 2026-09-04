@@ -1,8 +1,8 @@
 # Project State - L1 Index
 
-**Last Updated:** 2026-09-04 09:25 AM
-**Branch:** develop (ahead 2 commits)
-**Status:** Phase 5 Sprint 1 Complete (Quick Wins)
+**Last Updated:** 2026-09-04 09:45 AM
+**Branch:** develop (ahead 3 commits)
+**Status:** Phase 5 Sprint 2 Complete (UX Polish)
 
 ---
 
@@ -14,7 +14,7 @@
 | Untracked Files | 12 |
 | Last Commit | Phase 4 implementation |
 | Active Features | Voice cloning, TTS providers, workflow optimization |
-| Phase 5 Status | ✅ Sprint 1 Complete (3/3 tasks done) |
+| Phase 5 Status | ✅ Sprint 2 Complete (3/3 UX polish tasks done) |
 
 ---
 
@@ -130,6 +130,8 @@
 - `apps/web/lib/errorMessage.ts` - **NEW** - User-friendly error message utilities
 - `apps/web/instrumentation.ts` - **NEW** - Sentry client-side instrumentation
 - `apps/web/sentry.server.config.ts` - **NEW** - Sentry server-side config
+- `apps/web/components/ShortcutsHelp.tsx` - **NEW** - Keyboard shortcuts help modal
+- `apps/web/components/EnvBadge.tsx` - **NEW** - Dev/staging environment indicator
 
 **Testing:**
 - `test_provider_selection.md` - Provider test docs

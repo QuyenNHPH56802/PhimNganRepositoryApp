@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
-import { Button, Card, EmptyState, StatusDot, Badge, Modal } from "@/components/ui";
+import { Button, Card, EmptyState, StatusDot, Badge, Modal, SkeletonRow } from "@/components/ui";
 import { theme } from "@/lib/theme";
 import type { Project } from "@/lib/types";
 
@@ -79,7 +79,11 @@ export default function ProjectsListPage() {
           />
         </div>
         {loading ? (
-          <div style={{ padding: 24, color: theme.textMuted }}>Đang tải…</div>
+          <Card padded={false}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonRow key={i} avatar={false} lines={2} />
+            ))}
+          </Card>
         ) : error ? (
           <EmptyState title="Không kết nối được backend" description={error} />
         ) : filtered.length === 0 ? (

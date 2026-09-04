@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useEditor } from "@/lib/store";
-import { Badge, Button, Card, EmptyState } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, SkeletonPanel } from "@/components/ui";
 import { theme } from "@/lib/theme";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/toast";
@@ -158,6 +158,7 @@ function VoiceModal({ voice, onClose, onSave }: VoiceModalProps) {
 
 export function VoicePanel() {
   const voices = useEditor((s) => s.voices);
+  const isInitialLoading = useEditor((s) => s.isInitialLoading);
   const loadVoices = useEditor((s) => s.loadVoices);
   const projectId = useEditor((s) => s.projectId);
   const { toast } = useToast();
@@ -204,6 +205,10 @@ export function VoicePanel() {
     } finally {
       setPreviewingId(null);
     }
+  }
+
+  if (isInitialLoading && voices.length === 0) {
+    return <SkeletonPanel title="Giọng nói" rows={3} />;
   }
 
   if (voices.length === 0) {

@@ -25,6 +25,7 @@ interface HistorySnapshot {
 interface EditorState {
   projectId: string | null;
   panel: Panel;
+  isInitialLoading: boolean; // true while first panel data is being fetched
   currentTimeMs: number;
   durationMs: number;
   playing: boolean;
@@ -108,6 +109,7 @@ export const useEditor = create<EditorState>()(
     (set, get) => ({
   projectId: null,
   panel: "transcript",
+  isInitialLoading: true,
   currentTimeMs: 0,
   durationMs: 0,
   playing: false,
@@ -140,6 +142,7 @@ export const useEditor = create<EditorState>()(
   redoStack: [],
 
   setProject: (id) => set({ projectId: id }),
+  setIsInitialLoading: (v: boolean) => set({ isInitialLoading: v }),
   setPanel: (panel) => set({ panel }),
   setTime: (ms) => set({ currentTimeMs: ms }),
   setDuration: (ms) => set({ durationMs: ms }),

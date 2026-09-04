@@ -6,6 +6,7 @@ import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { theme } from "@/lib/theme";
 import { useT, SUPPORTED_LOCALES as I18N_LOCALES, LOCALE_LABELS } from "@/lib/i18n";
+import { EnvBadge } from "@/components/EnvBadge";
 
 function useNavItems() {
   const { t } = useT();
@@ -186,6 +187,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Breadcrumbs pathname={pathname ?? "/"} t={t} />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <EnvBadge />
             <select
               value={locale}
               onChange={(e) => setLocale(e.target.value as typeof locale)}

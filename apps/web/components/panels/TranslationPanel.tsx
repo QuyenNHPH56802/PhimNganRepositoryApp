@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEditor } from "@/lib/store";
-import { Badge, Button, Card, EmptyState, Modal } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Modal, SkeletonPanel } from "@/components/ui";
 import { speakerColor, theme } from "@/lib/theme";
 import { api, ApiError } from "@/lib/api";
 import { useToast } from "@/lib/toast";
@@ -39,6 +39,7 @@ export function TranslationPanel() {
   const router = useRouter();
   const translation = useEditor((s) => s.translation);
   const transcript = useEditor((s) => s.transcript);
+  const isInitialLoading = useEditor((s) => s.isInitialLoading);
   const updateTranslationSegment = useEditor((s) => s.updateTranslationSegment);
   const setTime = useEditor((s) => s.setTime);
   const currentTimeMs = useEditor((s) => s.currentTimeMs);
@@ -54,6 +55,10 @@ export function TranslationPanel() {
       return { translation: t, source };
     })
     .filter((r) => (filter === "all" ? true : r.translation.status === filter));
+
+  if (isInitialLoading && translation.length === 0) {
+    return <SkeletonPanel title="Bản dịch" rows={8} />;
+  }
 
   if (translation.length === 0) {
     return (

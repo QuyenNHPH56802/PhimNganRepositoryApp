@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { useEditor } from "@/lib/store";
-import { Button, Card, EmptyState, Input, StatusDot } from "@/components/ui";
+import { Button, Card, EmptyState, Input, SkeletonPanel, StatusDot } from "@/components/ui";
 import { speakerColor, theme } from "@/lib/theme";
 import type { TranscriptSegment } from "@/lib/types";
 
 export function TranscriptPanel() {
   const transcript = useEditor((s) => s.transcript);
+  const isInitialLoading = useEditor((s) => s.isInitialLoading);
   const setTime = useEditor((s) => s.setTime);
   const currentTimeMs = useEditor((s) => s.currentTimeMs);
   const [query, setQuery] = useState("");
@@ -24,6 +25,10 @@ export function TranscriptPanel() {
   }, [transcript, query]);
 
   const grouped = useMemo(() => groupBySpeaker(filteredTranscript), [filteredTranscript]);
+
+  if (isInitialLoading && transcript.length === 0) {
+    return <SkeletonPanel title="Bản ghi" rows={6} />;
+  }
 
   if (transcript.length === 0) {
     return (

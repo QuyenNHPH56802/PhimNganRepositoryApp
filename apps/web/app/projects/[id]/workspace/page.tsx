@@ -20,6 +20,7 @@ import { RenderPanel } from "@/components/panels/RenderPanel";
 import { ProgressPanel } from "@/components/panels/ProgressPanel";
 import { useWorkflowStream } from "@/lib/useWorkflowStream";
 import { useShortcuts } from "@/lib/useShortcuts";
+import { ShortcutsHelp } from "@/components/ShortcutsHelp";
 import { useToast } from "@/lib/toast";
 import { theme } from "@/lib/theme";
 
@@ -62,6 +63,8 @@ export default function WorkspacePage() {
   const panel = useEditor((s) => s.panel);
   const setPanel = useEditor((s) => s.setPanel);
   const setProject = useEditor((s) => s.setProject);
+  const setIsInitialLoading = useEditor((s) => s.setIsInitialLoading);
+  const isInitialLoading = useEditor((s) => s.isInitialLoading);
   const renderedVideoSrc = useEditor((s) => s.renderedVideoSrc);
   const setRenderedVideoSrc = useEditor((s) => s.setRenderedVideoSrc);
   const loadTranscript = useEditor((s) => s.loadTranscript);
@@ -230,6 +233,7 @@ export default function WorkspacePage() {
       toast(`Một số panel không tải được: ${errors.join("; ")}`, "danger");
     }
     setRefreshing(false);
+    setIsInitialLoading(false);
   }, [
     projectId,
     loadTranscript,
@@ -239,16 +243,25 @@ export default function WorkspacePage() {
     loadSubtitles,
     loadAudio,
     toast,
+    setIsInitialLoading,
   ]);
 
   useEffect(() => {
     loadPanelData();
   }, [loadPanelData]);
 
-  useShortcuts([
+  const shortcutBindings = [
     { combo: "Mod+z", description: "Hoàn tác", handler: () => undo() },
     { combo: "Mod+Shift+z", description: "Làm lại", handler: () => redo() },
     { combo: "Mod+y", description: "Làm lại", handler: () => redo() },
+  ];
+  useShortcuts(shortcutBindings);
+  useShortcuts([
+    // Video playback shortcuts (allowed everywhere because most panels don't
+    // trap space, but Timeline does — global space is suppressed while editing).
+    { combo: "j", description: "Tua lùi 5 giây", handler: () => setTime(Math.max(0, currentTimeMs - 5000)) },
+    { combo: "l", description: "Tua tới 5 giây", handler: () => setTime(currentTimeMs + 5000) },
+    { combo: "k", description: "Phát / Tạm dừng", handler: () => setPlaying(!playing) },
   ]);
 
   const translation = useEditor((s) => s.translation);
@@ -575,6 +588,7 @@ export default function WorkspacePage() {
           </span>
           <Button size="sm" onClick={undo}>↶ Undo</Button>
           <Button size="sm" onClick={redo}>↷ Redo</Button>
+          <ShortcutsHelp bindings={shortcutBindings} />
         </div>
       </header>
 

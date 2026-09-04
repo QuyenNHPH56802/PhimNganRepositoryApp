@@ -4,6 +4,104 @@ import React from "react";
 import clsx from "clsx";
 import { theme } from "@/lib/theme";
 
+/**
+ * Skeleton — a placeholder with a shimmer animation shown while data is loading.
+ *
+ * Renders a rounded rectangle with a CSS gradient animation that sweeps left→right,
+ * giving the visual impression of content being loaded.
+ */
+export function Skeleton({
+  width,
+  height = 14,
+  style,
+  className,
+}: {
+  width?: string | number;
+  height?: string | number;
+  style?: React.CSSProperties;
+  className?: string;
+}) {
+  return (
+    <span
+      className={clsx("skeleton-shimmer", className)}
+      style={{
+        display: "inline-block",
+        width: width ?? "100%",
+        height,
+        borderRadius: 4,
+        background: theme.bgElevated,
+        verticalAlign: "middle",
+        ...style,
+      }}
+      aria-hidden="true"
+    />
+  );
+}
+
+/** Row of skeletons that approximates a typical list item. */
+export function SkeletonRow({
+  avatar = true,
+  lines = 2,
+  avatarColor,
+}: {
+  avatar?: boolean;
+  lines?: number;
+  avatarColor?: string;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 10,
+        padding: "10px 12px",
+        borderBottom: `1px solid ${theme.border}`,
+        alignItems: "flex-start",
+      }}
+    >
+      {avatar && (
+        <Skeleton
+          width={32}
+          height={32}
+          style={{ borderRadius: "50%", flexShrink: 0, background: avatarColor ?? theme.speaker1 + "40" }}
+        />
+      )}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+        {Array.from({ length: lines }).map((_, i) => (
+          <Skeleton key={i} width={i === lines - 1 ? "60%" : "100%"} height={12} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Full panel loading skeleton with header + multiple skeleton rows. */
+export function SkeletonPanel({
+  title,
+  rows = 5,
+}: {
+  title?: string;
+  rows?: number;
+}) {
+  return (
+    <div>
+      {title && (
+        <div
+          style={{
+            padding: "8px 12px",
+            borderBottom: `1px solid ${theme.border}`,
+            background: "#0d172e",
+          }}
+        >
+          <Skeleton width={120} height={13} />
+        </div>
+      )}
+      {Array.from({ length: rows }).map((_, i) => (
+        <SkeletonRow key={i} avatar={i < 3} avatarColor={Object.values(theme).find((v) => typeof v === "string" && v.startsWith("#") && [theme.speaker1, theme.speaker2, theme.speaker3, theme.speaker4].includes(v)) as string} />
+      ))}
+    </div>
+  );
+}
+
 export function Badge({
   tone = "neutral",
   children,

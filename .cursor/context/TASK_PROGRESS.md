@@ -1,6 +1,67 @@
 # Task Progress
 
-**Last Updated:** 2026-09-04 09:25 AM
+**Last Updated:** 2026-09-04 09:45 AM
+
+---
+
+## ✅ Phase 5 Sprint 2: UX Polish (2026-09-04)
+
+- **Started:** 2026-09-04 09:35 AM
+- **Completed:** 2026-09-04 09:45 AM
+- **Priority:** P2 (UX Polish)
+
+### Task A: Loading Skeletons ✅
+**Files changed:**
+- `apps/web/components/ui.tsx` — added `Skeleton`, `SkeletonRow`, `SkeletonPanel`
+- `apps/web/app/globals.css` — added `skeleton-shimmer` keyframes + reduced-motion fallback
+- `apps/web/lib/store.ts` — added `isInitialLoading` flag + `setIsInitialLoading` action
+- `apps/web/app/projects/[id]/workspace/page.tsx` — sets `isInitialLoading=true` while data loads, `false` when done
+- `apps/web/components/panels/TranscriptPanel.tsx` — renders SkeletonPanel when loading
+- `apps/web/components/panels/TranslationPanel.tsx` — renders SkeletonPanel when loading
+- `apps/web/components/panels/SpeakerPanel.tsx` — renders SkeletonPanel when loading
+- `apps/web/components/panels/VoicePanel.tsx` — renders SkeletonPanel when loading
+- `apps/web/components/panels/SubtitlePanel.tsx` — renders SkeletonPanel when loading
+- `apps/web/components/panels/TtsPanel.tsx` — renders SkeletonPanel when loading
+- `apps/web/app/projects/page.tsx` — projects list shows 6 skeleton rows while loading
+
+**What it does:**
+- Shimmer effect sweeps across placeholder blocks during initial load
+- Respects `prefers-reduced-motion`
+- Per-panel counts (5–8 rows depending on density)
+
+### Task B: Keyboard Shortcuts Modal ✅
+**Files added:**
+- `apps/web/components/ShortcutsHelp.tsx` — `?` key opens modal listing all bound shortcuts
+
+**Files modified:**
+- `apps/web/app/projects/[id]/workspace/page.tsx` — added j/l/k video playback shortcuts; mounted `ShortcutsHelp` in header
+
+**Shortcuts wired in workspace:**
+| Combo | Action |
+|-------|--------|
+| `Mod+Z` / `Ctrl+Z` | Hoàn tác |
+| `Mod+Shift+Z` | Làm lại |
+| `Mod+Y` | Làm lại |
+| `j` | Tua lùi 5s |
+| `l` | Tua tới 5s |
+| `k` | Phát / Tạm dừng |
+| `?` | Mở danh sách phím tắt |
+| `Esc` | Đóng modal |
+
+Cross-platform: shows `⌘` on Mac, `Ctrl` on Windows/Linux.
+
+### Task C: Dev/Env Mode Indicator ✅
+**Files added:**
+- `apps/web/components/EnvBadge.tsx` — renders `development · abc1234` chip in header
+  - Hidden in production
+  - Calls `/api/healthz` to read env/sha/build
+  - Different color for `staging` (amber) vs dev (sky-blue)
+  - Pulsing dot animation
+
+**Files modified:**
+- `apps/web/app/api/healthz/route.ts` — added `env`, `sha`, `build` fields to response
+- `apps/web/components/AppShell.tsx` — mounts `<EnvBadge />` next to language picker
+- `.env.example` — added `NEXT_PUBLIC_APP_ENV`, `NEXT_PUBLIC_GIT_SHA`, `NEXT_PUBLIC_BUILD_ID`
 
 ---
 

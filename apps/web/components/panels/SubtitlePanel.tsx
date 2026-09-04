@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useEditor } from "@/lib/store";
-import { Button, Card, EmptyState, Modal, Textarea } from "@/components/ui";
+import { Button, Card, EmptyState, Modal, SkeletonPanel, Textarea } from "@/components/ui";
 import { theme } from "@/lib/theme";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/toast";
@@ -10,6 +10,7 @@ import { humanizeError } from "@/lib/errorMessage";
 
 export function SubtitlePanel() {
   const subtitles = useEditor((s) => s.subtitles);
+  const isInitialLoading = useEditor((s) => s.isInitialLoading);
   const updateSubtitleSegment = useEditor((s) => s.updateSubtitleSegment);
   const splitSubtitle = useEditor((s) => s.splitSubtitle);
   const mergeSubtitleWith = useEditor((s) => s.mergeSubtitleWith);
@@ -40,6 +41,10 @@ export function SubtitlePanel() {
     } finally {
       setGenerating(false);
     }
+  }
+
+  if (isInitialLoading && subtitles.length === 0) {
+    return <SkeletonPanel title="Phụ đề" rows={5} />;
   }
 
   if (subtitles.length === 0) {
