@@ -1,6 +1,51 @@
 # Task Progress
 
-**Last Updated:** 2026-09-04 09:45 AM
+**Last Updated:** 2026-09-04 10:00 AM
+
+---
+
+## ✅ Phase 5 Sprint 3: Testing & Docs (2026-09-04)
+
+- **Started:** 2026-09-04 09:50 AM
+- **Completed:** 2026-09-04 10:00 AM
+- **Priority:** P2 (Polish)
+
+### Task 4: E2E Test Expansion ✅
+**New Playwright specs added (4):**
+- `apps/web/tests/e2e/shortcuts-modal.spec.ts` — opens via `?` key, header button, Escape closes, platform-aware Cmd/Ctrl label
+- `apps/web/tests/e2e/skeleton-loading.spec.ts` — verifies shimmer placeholders during initial load on workspace + projects list
+- `apps/web/tests/e2e/error-boundary.spec.ts` — fallback UI copy button + toggle; POST `/api/error-report` happy path + validation
+- `apps/web/tests/e2e/openapi-docs.spec.ts` — `/openapi.json`, `/docs`, `/redoc` smoke tests against the FastAPI backend
+- `apps/web/tests/e2e/env-badge.spec.ts` — verifies EnvBadge renders in dev/staging builds
+
+**Total E2E specs:** 6 (was 2 — 3× expansion)
+
+### Task 8: Architecture Diagrams ✅
+**File:** `docs/architecture-diagrams.md` (NEW, ~250 lines)
+
+Six Mermaid diagrams covering:
+1. **System topology** — service ↔ infrastructure ↔ external providers
+2. **Workflow state machine** — Temporal pipeline lifecycle
+3. **Provider registry** — pluggable LLM/TTS/OCR pattern
+4. **Editor data flow** — REST → Zustand → React
+5. **SSE streaming** — real-time progress via EventSource
+6. **Audio mixing pipeline** — per-track gain + FFmpeg amix
+
+All diagrams render natively on GitHub, GitLab, VS Code.
+
+### Task 9: Provider Implementation Guide ✅
+**File:** `docs/provider-guide.md` (NEW, ~280 lines)
+
+End-to-end walkthrough for adding a new provider (translation + TTS):
+- Concepts (Provider / Kind / Registry / Bootstrap)
+- Directory layout
+- Step-by-step: provider class (matching `Provider[InputT, OutputT]` base class with `run(payload, ctx)`)
+- Registration via `registry.register("kind", instance)`
+- Admin UI wiring + smoke test + best practices
+- Failure modes checklist + common gotchas
+- Reference providers to copy from
+
+Examples use real `ProviderError`, `ProviderCapabilities`, `ProviderContext` types from `providers/base.py`.
 
 ---
 
