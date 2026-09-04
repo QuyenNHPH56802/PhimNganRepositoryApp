@@ -41,6 +41,9 @@ interface EditorState {
   subtitles: SubtitleSegment[];
   audio: AudioSegment[];
 
+  // Audio mixing gains for real-time preview
+  audioMixGains: Record<string, number>;
+
   // Per-type dirty flags so each panel can autosave independently without a
   // round-trip when only one of them changed.
   dirty: boolean;
@@ -65,6 +68,8 @@ interface EditorState {
   setZoom: (z: number) => void;
   selectSegment: (id: string | null) => void;
   setRenderedVideoSrc: (src: string | null) => void;
+  setAudioMixGain: (trackId: string, gain: number) => void;
+  setAudioMixGains: (gains: Record<string, number>) => void;
 
   loadTranscript: (rows: TranscriptSegment[]) => void;
   loadTranslation: (rows: TranslationSegment[]) => void;
@@ -119,6 +124,8 @@ export const useEditor = create<EditorState>()(
   subtitles: [],
   audio: [],
 
+  audioMixGains: { original: 1, voice_vi: 1, music: 0.5, sfx: 0.7 },
+
   dirty: false,
   dirtyTranslation: false,
   dirtyTranscript: false,
@@ -141,6 +148,11 @@ export const useEditor = create<EditorState>()(
   setZoom: (z) => set({ zoom: Math.max(10, Math.min(1000, z)) }),
   selectSegment: (id) => set({ selectedSegmentId: id }),
   setRenderedVideoSrc: (renderedVideoSrc) => set({ renderedVideoSrc }),
+  setAudioMixGain: (trackId, gain) =>
+    set((s) => ({
+      audioMixGains: { ...s.audioMixGains, [trackId]: gain },
+    })),
+  setAudioMixGains: (gains) => set({ audioMixGains: gains }),
 
   loadTranscript: (rows) => set({ transcript: rows }),
   loadTranslation: (rows) => set({ translation: rows, dirtyTranslation: false }),

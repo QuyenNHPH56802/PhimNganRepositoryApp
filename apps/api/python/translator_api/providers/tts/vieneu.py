@@ -24,7 +24,7 @@ class VieNeuProvider(LocalTtsProvider):
 
     def _ensure_loaded(self, config: TtsProviderConfig | None) -> None:
         try:
-            import vieneu  # type: ignore[import-not-found]
+            import vieneu  # noqa: F401
         except Exception as exc:
             raise CapabilityUnsupported("vieneu-not-installed", str(exc)) from exc
         if config is not None and config.reference_audio_key is None:

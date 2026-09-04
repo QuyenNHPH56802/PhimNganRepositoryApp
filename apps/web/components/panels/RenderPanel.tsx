@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useEditor } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
 import { Badge, Button, Card, Select, StatusDot } from "@/components/ui";
@@ -67,52 +67,68 @@ export function RenderPanel() {
       ? "Cần sinh TTS trước (bảng Âm thanh đang trống). Chuyển 'Chế độ âm thanh' sang 'Giữ tiếng gốc' nếu chỉ cần phụ đề."
       : null;
 
-  // Poll workflow status — guarded by `cancelledRef` so the recursive timer
-  // chain bails out cleanly when a new poll starts or the panel unmounts.
-  const cancelledRef = { current: false };
+  // Poll workflow status with AbortController for proper cleanup
+  const abortControllerRef = useRef<AbortController | null>(null);
   const pollStatus = useCallback(async (workflowId: string) => {
-    if (!projectId || cancelledRef.current) return;
+    if (!projectId) return;
 
-    try {
-      const status = await api.getWorkflow(projectId, workflowId);
-      if (cancelledRef.current) return;
-      if (status?.status === "ready") {
-        setIsComplete(true);
-        setRenderProgress("");
-        const assetUrl = await api.getAssetUrl(projectId);
-        if (assetUrl?.rendered_url) {
-          setDownloadUrl(assetUrl.rendered_url);
-          setRenderedVideoSrc(assetUrl.rendered_url);
+    // Create new abort controller for this polling chain
+    abortControllerRef.current = new AbortController();
+    const { signal } = abortControllerRef.current;
+
+    const poll = async () => {
+      if (signal.aborted) return;
+
+      try {
+        const status = await api.getWorkflow(projectId, workflowId);
+        if (signal.aborted) return;
+
+        if (status?.status === "ready") {
+          setIsComplete(true);
+          setRenderProgress("");
+          const assetUrl = await api.getAssetUrl(projectId);
+          if (assetUrl?.rendered_url && !signal.aborted) {
+            setDownloadUrl(assetUrl.rendered_url);
+            setRenderedVideoSrc(assetUrl.rendered_url);
+          }
+          return;
         }
-        return;
-      }
 
-      if (status?.status === "failed") {
-        setError("Workflow thất bại");
-        setRenderProgress("");
-        return;
-      }
+        if (status?.status === "failed") {
+          setError("Workflow thất bại");
+          setRenderProgress("");
+          return;
+        }
 
-      // Continue polling after delay; re-check cancellation right before
-      // recursing so a late cancellation doesn't schedule another fetch.
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      if (cancelledRef.current) return;
-      return pollStatus(workflowId);
-    } catch (err) {
-      console.error("Poll status error:", err);
-    }
-  }, [projectId]);
+        // Only continue polling if still processing
+        if (status?.status === "processing") {
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+          if (!signal.aborted) {
+            return poll();
+          }
+        }
+      } catch (err) {
+        if (!signal.aborted) {
+          console.error("Poll status error:", err);
+        }
+      }
+    };
+
+    return poll();
+  }, [projectId, setRenderedVideoSrc]);
 
   // Cleanup polling on unmount or when projectId changes
   useEffect(() => {
-    cancelledRef.current = false;
-
     if (workflowResult?.workflow_id && !isComplete) {
       pollStatus(workflowResult.workflow_id);
     }
 
     return () => {
-      cancelledRef.current = true;
+      // Abort any ongoing polling requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
     };
   }, [workflowResult?.workflow_id, isComplete, pollStatus]);
 

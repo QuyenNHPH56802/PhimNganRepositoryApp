@@ -15,7 +15,6 @@ from pathlib import Path
 from translator_api.config import DiarizationProviderConfig
 from translator_api.providers.base import (
     CapabilityUnsupported,
-    ConsentMissing,
     Provider,
     ProviderCapabilities,
     ProviderContext,

@@ -28,7 +28,6 @@ Italian, Portuguese, Spanish, French, Russian (and more).
 from __future__ import annotations
 
 import os
-from typing import Literal
 
 from translator_api.providers.base import (
     CapabilityUnsupported,

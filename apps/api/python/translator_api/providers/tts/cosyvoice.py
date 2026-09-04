@@ -14,7 +14,7 @@ class CosyVoice3Provider(LocalTtsProvider):
 
     def _ensure_loaded(self, config) -> None:
         try:
-            import cosyvoice  # type: ignore[import-not-found]
+            import cosyvoice  # noqa: F401
         except Exception as exc:
             raise CapabilityUnsupported("cosyvoice-not-installed", str(exc)) from exc
         self._loaded = True
@@ -24,8 +24,6 @@ class CosyVoice3Provider(LocalTtsProvider):
             raise CapabilityUnsupported("cosyvoice-not-loaded", "cosyvoice SDK was not loaded")
         try:
             import cosyvoice
-            from cosyvoice.cosyvoice.utils.model_utils import load_audio
-            import numpy as np
             import soundfile as sf
             import tempfile
             from pathlib import Path

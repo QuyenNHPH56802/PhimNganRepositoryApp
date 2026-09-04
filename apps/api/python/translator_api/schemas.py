@@ -22,6 +22,10 @@ class ProjectCreate(BaseModel):
     language_profile: str = Field(default="zh-vi", max_length=32)
     source_language: str = Field(default="zh", max_length=8)
     target_language: str = Field(default="vi", max_length=8)
+    tts_provider_id: str | None = Field(default="edge_tts", max_length=64)
+    tts_config: dict | None = None
+    translate_provider_id: str | None = Field(default="local_llm", max_length=64)
+    translate_config: dict | None = None
 
 
 class ProjectResponse(BaseModel):
@@ -30,6 +34,10 @@ class ProjectResponse(BaseModel):
     quality_mode: QualityMode
     status: WorkflowStatus
     created_at: datetime
+
+
+class ProjectUpdate(BaseModel):
+    title: str | None = Field(None, min_length=1, max_length=255)
 
 
 class ProjectListResponse(BaseModel):

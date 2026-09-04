@@ -14,7 +14,7 @@ class MeloTtsViProvider(LocalTtsProvider):
 
     def _ensure_loaded(self, config) -> None:
         try:
-            import melo  # type: ignore[import-not-found]
+            import melo  # noqa: F401
         except Exception as exc:
             raise CapabilityUnsupported("melo-not-installed", str(exc)) from exc
         self._loaded = True

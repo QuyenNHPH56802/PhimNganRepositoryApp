@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar
+from uuid import UUID
 
 from sqlalchemy.orm import Session as SA_Session
 
@@ -94,6 +95,9 @@ class ProviderRegistry:
 
     def list(self, kind: str) -> list[str]:
         return [pid for (k, pid) in self._providers if k == kind]
+
+    def list_providers(self, kind: str) -> list[Provider]:
+        return [p for (k, _), p in self._providers.items() if k == kind]
 
 
 _default_registry = ProviderRegistry()

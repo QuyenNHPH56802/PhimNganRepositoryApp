@@ -23,7 +23,8 @@
   "app": {
     "title": "Trung → Việt",
     "subtitle": "Nền tảng Việt hoá Video",
-    "language": "Ngôn ngữ giao diện"
+    "language": "Ngôn ngữ giao diện",
+    "version": "Phiên bản"
   },
   "nav": {
     "dashboard": "Bảng điều khiển",
@@ -57,6 +58,9 @@
     "colQuality": "Chất lượng",
     "colStatus": "Trạng thái",
     "colCreated": "Thời gian tạo"
+  },
+  "voice": {
+    "profiles": "Danh sách hồ sơ giọng đọc"
   },
   "admin": {
     "audit": "Nhật ký hệ thống",

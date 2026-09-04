@@ -16,7 +16,7 @@ COPY infra/migrations /app/infra/migrations
 RUN pip install --upgrade pip \
     && pip install -e /app/packages/shared/python/translator_shared \
     && pip install -e /app/apps/api/python/translator_api \
-    && pip install "psycopg[binary]>=3.2.1" "boto3>=1.34" "uvicorn[standard]" "alembic>=1.13"
+    && pip install "psycopg[binary]>=3.2.1" "boto3>=1.34" "uvicorn[standard]" "alembic>=1.13" "python-multipart>=0.0.9"
 
 EXPOSE 8000
 CMD ["uvicorn", "translator_api.main:app", "--host", "0.0.0.0", "--port", "8000"]

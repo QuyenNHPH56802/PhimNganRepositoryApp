@@ -11,7 +11,7 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0005_phase5_voice_profile_columns"
+revision = "0005_phase5_voice_cols"
 down_revision = "0004_phase4_rbac_indexes"
 branch_labels = None
 depends_on = None

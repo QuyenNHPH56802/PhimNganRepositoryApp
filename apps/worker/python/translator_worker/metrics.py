@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import shutil
 import subprocess
-import time
 
 try:
     from prometheus_client import (
@@ -15,7 +14,6 @@ try:
         Gauge,
         Histogram,
         generate_latest,
-        multiprocess,
     )
 
     REGISTRY = CollectorRegistry()

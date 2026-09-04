@@ -7,10 +7,7 @@ isn't expected to load checkpoints at import time.
 
 from __future__ import annotations
 
-from translator_api.providers.base import (
-    CapabilityUnsupported,
-    ConsentMissing,
-)
+from translator_api.providers.base import CapabilityUnsupported
 from translator_api.providers.tts.base import LocalTtsProvider, TtsInput
 
 
@@ -22,7 +19,7 @@ class VietVoiceTtsProvider(LocalTtsProvider):
 
     def _ensure_loaded(self, config) -> None:
         try:
-            import vietvoice_tts  # type: ignore[import-not-found]
+            import vietvoice_tts  # noqa: F401
         except Exception as exc:
             raise CapabilityUnsupported("vietvoice-not-installed", str(exc)) from exc
         self._loaded = True

@@ -11,11 +11,11 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from translator_api.db import SessionLocal, get_db
+from translator_api.db import SessionLocal
 from translator_api.models import User
 from translator_api.security.identity import UserIdentity
 

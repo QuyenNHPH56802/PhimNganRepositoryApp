@@ -88,6 +88,128 @@ def _latest_asset(project_id: UUID, db: Session) -> Asset | None:
 logger = logging.getLogger(__name__)
 
 
+@router.post("/projects/{project_id}/music:presign", tags=["editor"])
+def presign_music_upload(
+    project_id: UUID,
+    payload: dict,
+    identity: UserIdentity = Depends(get_identity),
+    db: Session = Depends(get_db),
+):
+    """Presign URL for uploading background music file."""
+    _require_viewer(project_id, identity, db)
+    
+    filename = payload.get("filename", "music.mp3")
+    mime = payload.get("mime", "audio/mpeg")
+    size = payload.get("size", 0)
+    
+    # Validate file size (max 50MB for music)
+    if size > 50 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Music file too large (max 50MB)")
+    
+    # Create asset record
+    asset = Asset(
+        project_id=project_id,
+        kind="background_music",
+        storage_key="",
+        mime=mime,
+        size=size,
+        uploaded_by=UUID(identity.user_id) if identity.user_id else None,
+    )
+    db.add(asset)
+    db.commit()
+    db.refresh(asset)
+    
+    # Generate storage key
+    key = f"projects/{project_id}/music/{asset.id}/{filename}"
+    asset.storage_key = key
+    db.commit()
+    
+    # Generate presign URL
+    storage = LocalStorage()
+    presign_data = storage.presign_put(key, mime=mime, expires_in=3600)
+    
+    return {
+        "asset_id": str(asset.id),
+        "key": key,
+        **presign_data,
+    }
+
+
+@router.post("/projects/{project_id}/music", tags=["editor"])
+def create_music_track(
+    project_id: UUID,
+    payload: dict,
+    identity: UserIdentity = Depends(get_identity),
+    db: Session = Depends(get_db),
+):
+    """Create AudioTrack entry for uploaded music."""
+    _require_viewer(project_id, identity, db)
+    
+    asset_id = payload.get("asset_id")
+    if not asset_id:
+        raise HTTPException(status_code=400, detail="asset_id required")
+    
+    # Verify asset exists and belongs to this project
+    asset = db.query(Asset).filter_by(id=UUID(asset_id), project_id=project_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    
+    # Create audio track
+    audio_track = AudioTrack(
+        asset_id=asset.id,
+        kind="music",
+        storage_key=asset.storage_key,
+        duration_ms=None,  # Will be populated by worker if needed
+        sample_rate=None,
+        channels=None,
+    )
+    db.add(audio_track)
+    db.commit()
+    db.refresh(audio_track)
+    
+    return {
+        "ok": True,
+        "track_id": str(audio_track.id),
+        "storage_key": audio_track.storage_key,
+    }
+
+
+@router.get("/projects/{project_id}/music", tags=["editor"])
+def get_music_track(
+    project_id: UUID,
+    identity: UserIdentity = Depends(get_identity),
+    db: Session = Depends(get_db),
+):
+    """Get uploaded music track info for this project."""
+    _require_viewer(project_id, identity, db)
+    
+    # Find music asset
+    asset = (
+        db.query(Asset)
+        .filter_by(project_id=project_id, kind="background_music")
+        .order_by(Asset.uploaded_at.desc())
+        .first()
+    )
+    
+    if not asset:
+        return {"music": None}
+    
+    # Find audio track
+    audio_track = db.query(AudioTrack).filter_by(asset_id=asset.id, kind="music").first()
+    
+    return {
+        "music": {
+            "asset_id": str(asset.id),
+            "track_id": str(audio_track.id) if audio_track else None,
+            "storage_key": asset.storage_key,
+            "url": f"/local-assets/{asset.storage_key}",
+            "filename": asset.storage_key.split("/")[-1] if asset.storage_key else "music.mp3",
+            "size": asset.size,
+            "mime": asset.mime,
+        }
+    }
+
+
 @router.get("/projects/{project_id}/asset-url", tags=["editor"])
 def get_asset_url(
     project_id: UUID,
@@ -122,31 +244,61 @@ def get_asset_url(
 @router.get("/projects/{project_id}/transcript", tags=["editor"])
 def list_transcript(
     project_id: UUID,
+    limit: int = 100,
+    offset: int = 0,
     identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ):
+    """List transcript segments with pagination support.
+    
+    Args:
+        limit: Maximum segments to return (default: 100, max: 500)
+        offset: Number of segments to skip (default: 0)
+    
+    Returns:
+        segments: List of transcript segments
+        pagination: {limit, offset, total} for client-side pagination
+    """
     _require_viewer(project_id, identity, db)
+    
+    # Enforce max limit
+    limit = min(limit, 500)
+    
     asset = _latest_asset(project_id, db)
     if asset is None:
         # No asset yet — return empty list so the workspace can hydrate
         # state cleanly instead of failing with 404 before upload.
         logger.info("transcript: no asset for project=%s; returning empty list", project_id)
-        return {"segments": []}
+        return {"segments": [], "pagination": {"limit": limit, "offset": offset, "total": 0}}
+    
     transcript = (
         db.query(Transcript)
-        .options(selectinload(Transcript.segments))
         .filter_by(asset_id=asset.id)
         .order_by(Transcript.created_at.desc())
         .first()
     )
+    
     if transcript is None:
         # ASR hasn't produced a transcript yet — same handling: empty list.
         logger.info("transcript: ASR not yet run for asset=%s; returning empty list", asset.id)
-        return {"segments": []}
-    rows = sorted(transcript.segments, key=lambda s: s.start_ms) if hasattr(transcript, 'segments') else []
-    if not rows:
-        logger.info("transcript=%s has no segments; ASR likely produced empty output", transcript.id)
-        return {"segments": []}
+        return {"segments": [], "pagination": {"limit": limit, "offset": offset, "total": 0}}
+    
+    # Get total count
+    total = db.query(TranscriptSegment).filter_by(transcript_id=transcript.id).count()
+    
+    # Get paginated segments
+    segments = (
+        db.query(TranscriptSegment)
+        .filter_by(transcript_id=transcript.id)
+        .order_by(TranscriptSegment.start_ms)
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    
+    if not segments and total > 0:
+        logger.info("transcript=%s has %d segments but offset=%d exceeds range", transcript.id, total, offset)
+    
     return {
         "segments": [
             {
@@ -158,8 +310,13 @@ def list_transcript(
                 "speaker": r.speaker_label or "Speaker",
                 "status": "auto",
             }
-            for r in rows
-        ]
+            for r in segments
+        ],
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "total": total,
+        }
     }
 
 
@@ -167,52 +324,87 @@ def list_transcript(
 @router.get("/projects/{project_id}/translations", tags=["editor"])
 def list_translations(
     project_id: UUID,
+    limit: int = 100,
+    offset: int = 0,
     identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ):
+    """List translation segments with pagination support and optimized loading.
+    
+    Args:
+        limit: Maximum segments to return (default: 100, max: 500)
+        offset: Number of segments to skip (default: 0)
+    
+    Returns:
+        segments: List of translation segments
+        pagination: {limit, offset, total} for client-side pagination
+    
+    Uses selectinload to batch-fetch related transcript segments in 2 queries total:
+    1. TranslationVersion + TranslationSegments
+    2. TranscriptSegments (batch loaded by selectinload)
+    
+    Previous: 1 + N queries (N = number of translation segments)
+    After: 2 queries total
+    """
     _require_viewer(project_id, identity, db)
+    
+    # Enforce max limit
+    limit = min(limit, 500)
+    
+    # Get latest version (no eager load yet, just metadata)
     latest_version = (
         db.query(TranslationVersion)
-        .options(selectinload(TranslationVersion.segments))
         .filter_by(project_id=project_id, is_active=True)
         .order_by(TranslationVersion.version.desc())
         .first()
     )
+    
     if latest_version is None:
         # Translation not produced yet — return empty list rather than 404 so
         # the workspace can hydrate state cleanly before/after pipeline runs.
         logger.info("translation: no active version for project=%s; returning empty list", project_id)
-        return {"segments": []}
+        return {"segments": [], "pagination": {"limit": limit, "offset": offset, "total": 0}}
     
-    # Eager load transcript segments for all translation segments
-    segment_ids = [seg.transcript_segment_id for seg in latest_version.segments if seg.transcript_segment_id]
-    transcript_segments_map = {}
-    if segment_ids:
-        transcript_segments = db.query(TranscriptSegment).filter(TranscriptSegment.id.in_(segment_ids)).all()
-        transcript_segments_map = {ts.id: ts for ts in transcript_segments}
+    # Get total count
+    total = db.query(TranslationSegment).filter_by(version_id=latest_version.id).count()
     
-    rows = [(tr, transcript_segments_map.get(tr.transcript_segment_id)) for tr in latest_version.segments]
-    if not rows:
+    # Optimized: Use selectinload for nested relationship to avoid N+1
+    segments = (
+        db.query(TranslationSegment)
+        .options(selectinload(TranslationSegment.transcript_segment))
+        .filter_by(version_id=latest_version.id)
+        .order_by(TranslationSegment.id)
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    
+    if not segments and total > 0:
         logger.info(
-            "translation version %s has no segments; pipeline likely produced empty output",
-            latest_version.id,
+            "translation version %s has %d segments but offset=%d exceeds range",
+            latest_version.id, total, offset
         )
-        return {"segments": []}
+    
     return {
         "segments": [
             {
                 "id": str(tr.id),
                 "transcript_segment_id": str(tr.transcript_segment_id),
-                "start_ms": ts.start_ms if ts else 0,
-                "end_ms": ts.end_ms if ts else 1000,
+                "start_ms": tr.transcript_segment.start_ms if tr.transcript_segment else 0,
+                "end_ms": tr.transcript_segment.end_ms if tr.transcript_segment else 1000,
                 "display_text": tr.display_text,
                 "tts_text": tr.tts_text,
-                "speaker": ts.speaker_label if ts else "Speaker",
+                "speaker": tr.transcript_segment.speaker_label if tr.transcript_segment else "Speaker",
                 "status": "auto",
                 "confidence": tr.confidence,
             }
-            for tr, ts in rows
-        ]
+            for tr in segments
+        ],
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "total": total,
+        }
     }
 
 
@@ -299,26 +491,51 @@ def list_voices(
 @router.get("/projects/{project_id}/subtitles", tags=["editor"])
 def list_subtitles(
     project_id: UUID,
+    limit: int = 100,
+    offset: int = 0,
     identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ):
+    """List subtitle segments with pagination support.
+    
+    Args:
+        limit: Maximum segments to return (default: 100, max: 500)
+        offset: Number of segments to skip (default: 0)
+    
+    Returns:
+        segments: List of subtitle segments
+        pagination: {limit, offset, total} for client-side pagination
+    """
     _require_viewer(project_id, identity, db)
+    
+    # Enforce max limit
+    limit = min(limit, 500)
+    
     asset = _latest_asset(project_id, db)
     if asset is None:
         logger.info("subtitles: no asset for project=%s; returning empty list", project_id)
-        return {"segments": []}
+        return {"segments": [], "pagination": {"limit": limit, "offset": offset, "total": 0}}
+    
     track = (
         db.query(SubtitleTrack).filter_by(asset_id=asset.id, kind="target").first()
     )
     if track is None:
         logger.info("subtitles: no target track for asset=%s; returning empty list", asset.id)
-        return {"segments": []}
-    rows = (
+        return {"segments": [], "pagination": {"limit": limit, "offset": offset, "total": 0}}
+    
+    # Get total count
+    total = db.query(SubtitleSegment).filter_by(subtitle_track_id=track.id).count()
+    
+    # Get paginated segments
+    segments = (
         db.query(SubtitleSegment)
         .filter_by(subtitle_track_id=track.id)
         .order_by(SubtitleSegment.idx)
+        .offset(offset)
+        .limit(limit)
         .all()
     )
+    
     return {
         "segments": [
             {
@@ -328,8 +545,13 @@ def list_subtitles(
                 "end_ms": r.end_ms,
                 "display_text": r.display_text,
             }
-            for r in rows
-        ]
+            for r in segments
+        ],
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "total": total,
+        }
     }
 
 

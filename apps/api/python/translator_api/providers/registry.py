@@ -38,7 +38,6 @@ from translator_api.providers.registry_constants import (
     TRANSLATE,
     TTS,
     VOICE_CLONE,
-    VOICE_EMBEDDING,
 )
 from translator_api.providers.render import FfmpegRenderProvider
 from translator_api.providers.separation import (

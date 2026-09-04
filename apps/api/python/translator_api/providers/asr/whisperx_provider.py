@@ -10,7 +10,6 @@ of letting the import explode.
 from __future__ import annotations
 
 import hashlib
-import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path

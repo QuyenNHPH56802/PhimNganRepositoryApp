@@ -2,14 +2,13 @@
 
 import hashlib
 
-from translator_api.providers.base import Provider, ProviderCapabilities, ProviderContext
+from translator_api.providers.base import ProviderCapabilities, ProviderContext
 from translator_api.providers.separation.base import (
     LocalSeparationProvider,
     SeparationInput,
     upload_separation_output,
 )
 from translator_shared.providers import ArtifactSignature
-from translator_shared.provider_configs import SeparationProviderConfig
 from translator_shared.provider_responses_extra import SeparationResponse
 
 

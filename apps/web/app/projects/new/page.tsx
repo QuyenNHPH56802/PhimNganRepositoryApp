@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
@@ -10,6 +10,14 @@ import { loadToken } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/types";
 
 type Stage = "form" | "creating" | "uploading" | "triggering" | "done";
+
+interface ProviderMetadata {
+  id: string;
+  requires_api_key: boolean;
+  requires_gpu: boolean;
+  is_local: boolean;
+  requires_consent: boolean;
+}
 
 export default function NewProjectPage() {
   const router = useRouter();
@@ -22,6 +30,35 @@ export default function NewProjectPage() {
   const [progress, setProgress] = useState(0);
   const [stageMessage, setStageMessage] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  
+  // Provider configuration state
+  const [ttsProviders, setTtsProviders] = useState<ProviderMetadata[]>([]);
+  const [translateProviders, setTranslateProviders] = useState<ProviderMetadata[]>([]);
+  const [ttsProvider, setTtsProvider] = useState("edge_tts");
+  const [ttsApiKey, setTtsApiKey] = useState("");
+  const [translateProvider, setTranslateProvider] = useState("passthrough");
+  const [translateApiKey, setTranslateApiKey] = useState("");
+
+  // Fetch provider metadata on mount
+  useEffect(() => {
+    async function fetchMetadata() {
+      try {
+        const ttsResp = await fetch(`${API_BASE_URL}/providers/tts/metadata`);
+        const ttsData = await ttsResp.json();
+        setTtsProviders(ttsData.providers || []);
+
+        const translateResp = await fetch(`${API_BASE_URL}/providers/translate/metadata`);
+        const translateData = await translateResp.json();
+        setTranslateProviders(translateData.providers || []);
+      } catch (err) {
+        console.error("Failed to fetch provider metadata:", err);
+      }
+    }
+    fetchMetadata();
+  }, []);
+
+  const ttsNeedsKey = ttsProviders.find(p => p.id === ttsProvider)?.requires_api_key || false;
+  const translateNeedsKey = translateProviders.find(p => p.id === translateProvider)?.requires_api_key || false;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,6 +67,17 @@ export default function NewProjectPage() {
       setError("Vui lòng nhập tên project");
       return;
     }
+    
+    // Validate API keys if needed
+    if (ttsNeedsKey && !ttsApiKey.trim()) {
+      setError("TTS provider cần API key. Vui lòng nhập hoặc cấu hình tại Settings.");
+      return;
+    }
+    if (translateNeedsKey && !translateApiKey.trim()) {
+      setError("Translation provider cần API key. Vui lòng nhập hoặc cấu hình tại Settings.");
+      return;
+    }
+    
     let projectId: string | null = null;
     try {
       // Stage 1: create project
@@ -42,6 +90,10 @@ export default function NewProjectPage() {
         target_language: target,
         quality_mode: mode,
         language_profile: `${source}-${target}`,
+        tts_provider_id: ttsProvider,
+        tts_config: ttsApiKey ? { api_key: ttsApiKey } : undefined,
+        translate_provider_id: translateProvider,
+        translate_config: translateApiKey ? { api_key: translateApiKey } : undefined,
       });
       projectId = project.id;
 
@@ -132,6 +184,61 @@ export default function NewProjectPage() {
               <option value="balanced">Balanced — WhisperX + diarization</option>
               <option value="high">High — WhisperX + diarization + voice clone</option>
             </Select>
+          </Field>
+
+          <Field label="TTS Engine (Tổng hợp giọng nói)">
+            <Select value={ttsProvider} onChange={(e) => setTtsProvider(e.target.value)}>
+              <option value="edge_tts">🎙️ Edge TTS (Miễn phí, 2 giọng VN)</option>
+              <option value="vietvoice_tts">💻 VietVoice (GPU, 4 giọng VN)</option>
+              <option value="vieneu_tts">💻 VieNeu (GPU)</option>
+              <option value="cosyvoice3_tts">💻 CosyVoice3 (GPU)</option>
+              <option value="melo_tts_vi">💻 MeloTTS (GPU)</option>
+              <option value="qwen3_tts">💻 Qwen3 (GPU)</option>
+              <option value="dashscope_tts">☁️ DashScope (Cần API key)</option>
+              <option value="cloud_azure">☁️ Azure TTS (Cần API key)</option>
+              <option value="cloud_google">☁️ Google Cloud TTS (Cần API key)</option>
+              <option value="cloud_elevenlabs">☁️ ElevenLabs (Cần API key)</option>
+            </Select>
+            {ttsNeedsKey && (
+              <div style={{ marginTop: 8, padding: 10, background: "#422006", border: "1px solid #78350f", borderRadius: 6 }}>
+                <div style={{ fontSize: 12, color: "#fbbf24", marginBottom: 6 }}>
+                  ⚠️ Provider này cần API key để hoạt động
+                </div>
+                <Input
+                  type="password"
+                  placeholder="Nhập API key (hoặc cấu hình tại Settings)"
+                  value={ttsApiKey}
+                  onChange={(e) => setTtsApiKey(e.target.value)}
+                  style={{ marginBottom: 4 }}
+                />
+                <div style={{ fontSize: 11, color: "#a3a3a3" }}>
+                  Hoặc <Link href="/settings" style={{ color: "#38bdf8" }}>cấu hình tại Settings</Link> để dùng cho tất cả projects
+                </div>
+              </div>
+            )}
+          </Field>
+
+          <Field label="Translation Engine (Dịch thuật)">
+            <Select value={translateProvider} onChange={(e) => setTranslateProvider(e.target.value)}>
+              <option value="local_llm">💻 Ollama Local (Không cần key)</option>
+              <option value="openai_compatible_http">☁️ OpenAI / DeepSeek</option>
+              <option value="gemini_compatible_http">☁️ Google Gemini</option>
+              <option value="claude_compatible_http">☁️ Anthropic Claude</option>
+              <option value="passthrough_translate">⚡ Passthrough (Không dịch)</option>
+            </Select>
+            {translateNeedsKey && (
+              <div style={{ marginTop: 8, padding: 10, background: "#422006", border: "1px solid #78350f", borderRadius: 6 }}>
+                <div style={{ fontSize: 12, color: "#fbbf24", marginBottom: 6 }}>
+                  ⚠️ Provider này cần API key
+                </div>
+                <Input
+                  type="password"
+                  placeholder="API key (sk-proj-... hoặc sk-...)"
+                  value={translateApiKey}
+                  onChange={(e) => setTranslateApiKey(e.target.value)}
+                />
+              </div>
+            )}
           </Field>
 
           <Field label="Video đầu vào (tùy chọn)">
@@ -243,3 +350,8 @@ async function uploadWithProgress(
     xhr.send(formData);
   });
 }
+ 
+ F r i d a y ,   S e p t e m b e r   4 ,   2 0 2 6   7 : 5 0 : 4 1   A M  
+  
+  
+ 

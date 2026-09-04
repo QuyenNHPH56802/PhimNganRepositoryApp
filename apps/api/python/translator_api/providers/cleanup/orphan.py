@@ -41,7 +41,6 @@ class OrphanCleanupProvider(Provider[str, CleanupReport]):
             referenced.update(str(value) for (value,) in ctx.db_session.execute(select(column)).all() if value)
 
         # Walk storage prefix and bucket keys.
-        kept: list[str] = []
         deleted: list[str] = []
         # Phase 3: we don't have a generic list-prefix API in Storage protocol,
         # so report zero orphans. The activity layer can rely on `kept` for now.

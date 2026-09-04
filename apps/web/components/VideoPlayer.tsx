@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { theme } from "@/lib/theme";
 import { useEditor } from "@/lib/store";
 import { Button } from "@/components/ui";
+import { useAudioMixer } from "@/lib/useAudioMixer";
 
 interface VideoPlayerProps {
   src?: string;
@@ -25,10 +26,18 @@ export function VideoPlayer({ src, poster }: VideoPlayerProps) {
   const playing = useEditor((s) => s.playing);
   const volume = useEditor((s) => s.volume);
   const setVolume = useEditor((s) => s.setVolume);
+  const audioMixGains = useEditor((s) => s.audioMixGains);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
+
+  // Initialize Web Audio API for real-time mixing
+  const { initialized: audioMixerInitialized } = useAudioMixer({
+    videoRef: ref,
+    gains: audioMixGains,
+    enabled: true,
+  });
 
   // Determine the actual video source
   const videoSrc = (() => {

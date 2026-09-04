@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from translator_api.settings import get_settings
 from translator_api.storage_pkg import LocalStorage, S3CompatibleStorage
-from translator_shared.providers import StorageProviderId
 
 
 def make_worker_session_factory() -> sessionmaker[Session]:

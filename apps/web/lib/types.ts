@@ -1,13 +1,12 @@
 export type QualityMode = "fast" | "balanced" | "high";
 
 // Single source of truth for the backend base URL.
-// - In Docker, the web container reaches the API container at `api:8000`.
-// - In dev, the browser reaches the local backend at `localhost:8000`.
-// `next.config.mjs` forwards NEXT_PUBLIC_API_BASE_URL to the client bundle;
-// the DOCKER_CONTAINER check lets the same bundle work inside Docker.
+// - Server-side in Docker: use API_INTERNAL_URL to reach `api:8000` via docker network
+// - Client-side (browser): use NEXT_PUBLIC_API_BASE_URL to reach exposed port
+// - Local dev: both use localhost:8000
 function resolveApiBaseUrl(): string {
   if (process.env.DOCKER_CONTAINER === "true") {
-    return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://api:8000";
+    return process.env.API_INTERNAL_URL ?? "http://api:8000";
   }
   return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 }
@@ -134,4 +133,5 @@ export type Panel =
   | "voice"
   | "subtitle"
   | "audio"
-  | "render";
+  | "render"
+  | "progress";

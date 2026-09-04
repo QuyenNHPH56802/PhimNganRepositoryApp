@@ -3,6 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import { I18nProvider } from "@/lib/i18n";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ToastProvider } from "@/lib/toast";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export const metadata = {
   title: "China-VNE | Video Localization",
@@ -13,13 +14,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="vi" suppressHydrationWarning>
       <body>
-        <ThemeProvider>
-          <ToastProvider>
-            <I18nProvider>
-              <AppShell>{children}</AppShell>
-            </I18nProvider>
-          </ToastProvider>
-        </ThemeProvider>
+        <ErrorBoundary>
+          <ThemeProvider>
+            <ToastProvider>
+              <I18nProvider>
+                <AppShell>{children}</AppShell>
+              </I18nProvider>
+            </ToastProvider>
+          </ThemeProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

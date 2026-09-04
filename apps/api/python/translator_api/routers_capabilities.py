@@ -241,7 +241,7 @@ async def get_models_status() -> dict[str, Any]:
 
 
 @router.post("/models/install", tags=["models"])
-async def install_model(payload: ModelInstallRequest, background_tasks: BackgroundTask = None) -> dict[str, Any]:
+async def install_model(payload: ModelInstallRequest, background_tasks: BackgroundTasks = None) -> dict[str, Any]:
     """Trigger one-click installation for an AI model from HuggingFace / Cache."""
     model_id = payload.model_id
     if model_id not in MODEL_CATALOG:

@@ -17,7 +17,8 @@
   "app": {
     "title": "China → VNE",
     "subtitle": "Video Localization",
-    "language": "Language"
+    "language": "Language",
+    "version": "Version"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -34,6 +35,9 @@
     "email": "Email",
     "loginButton": "Sign in",
     "loginHint": "Dev build: any email works — token is auto-issued"
+  },
+  "voice": {
+    "profiles": "Voice profiles"
   },
   "admin": {
     "audit": "Audit log",

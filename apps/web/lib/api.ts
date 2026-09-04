@@ -107,6 +107,10 @@ export const api = {
     target_language: string;
     quality_mode: "fast" | "balanced" | "high";
     language_profile: string;
+    tts_provider_id?: string;
+    tts_config?: Record<string, unknown>;
+    translate_provider_id?: string;
+    translate_config?: Record<string, unknown>;
   }) => request<Project>("/projects", { method: "POST", body }),
   getProject: (id: string) => request<Project>(`/projects/${id}`),
   deleteProject: (id: string) =>
@@ -231,6 +235,22 @@ export const api = {
       method: "POST",
       body: { gains },
     }),
+
+  // Music upload
+  presignMusicAsset: (projectId: string, body: { filename: string; mime: string; size: number }) =>
+    request<{ asset_id: string; key: string; url: string; headers: Record<string, string>; expires_in: number }>(
+      `/projects/${projectId}/music:presign`,
+      { method: "POST", body }
+    ),
+
+  createMusicTrack: (projectId: string, body: { asset_id: string }) =>
+    request<{ ok: true; track_id: string; storage_key: string }>(`/projects/${projectId}/music`, {
+      method: "POST",
+      body,
+    }),
+
+  getMusicTrack: (projectId: string) =>
+    request<{ music: any }>(`/projects/${projectId}/music`),
 
   // Voice
   createVoiceProfile: (projectId: string, body: Partial<VoiceProfile>) =>

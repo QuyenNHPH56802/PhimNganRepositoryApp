@@ -6,9 +6,9 @@ from pydantic import BaseModel, Field
 
 
 class TranslationProviderConfig(BaseModel):
-    provider_id: str = "openai_compatible_http"
-    model_id: str = "gpt-4o-mini"
-    base_url: str = "https://api.openai.com/v1"
+    provider_id: str = "local_llm"
+    model_id: str = "qwen2.5:7b"
+    base_url: str = "http://localhost:11434"
     api_key: str | None = None
     api_key_env: str = "TRANSLATION_OPENAI_API_KEY"
     temperature: float = 0.2

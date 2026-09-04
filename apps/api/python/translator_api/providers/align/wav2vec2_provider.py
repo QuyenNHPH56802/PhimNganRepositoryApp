@@ -20,7 +20,7 @@ from translator_api.providers.base import (
     ProviderContext,
 )
 from translator_shared.providers import ArtifactSignature
-from translator_shared.provider_responses import AlignResponse, AlignedSegment, AlignedWord
+from translator_shared.provider_responses import AlignResponse, AlignedSegment
 
 
 @dataclass(frozen=True)

@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import logging
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from translator_api.db import get_db
-from translator_api.models import Project, Workflow, Asset, AuditLog, ProjectMember, User
+from translator_api.models import Project, Workflow, Asset, AuditLog, ProjectMember
 from translator_api.providers.registry import bootstrap
 from translator_api.providers.registry_constants import TRANSLATE
 from translator_api.repositories.asset_repository import AssetRepository
@@ -24,6 +24,7 @@ from translator_api.schemas import (
     ProjectCreate,
     ProjectListResponse,
     ProjectResponse,
+    ProjectUpdate,
     ProviderConfigResponse,
     ProviderConfigUpsert,
     WorkflowStatusResponse,
@@ -59,9 +60,26 @@ async def readyz() -> HealthResponse:
 
 
 @router.get("/projects", response_model=ProjectListResponse, tags=["projects"])
-async def list_projects(db: Session = Depends(get_db)) -> ProjectListResponse:
+async def list_projects(
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db)
+) -> ProjectListResponse:
+    """List projects with pagination support.
+    
+    Args:
+        limit: Maximum number of projects to return (default: 50, max: 100)
+        offset: Number of projects to skip (default: 0)
+    """
+    # Enforce max limit
+    limit = min(limit, 100)
+    
     repo = ProjectRepository(db)
-    items = repo.list()
+    items = repo.list(limit=limit, offset=offset)
+    
+    # Get total count for pagination
+    total = db.query(Project).count()
+    
     return ProjectListResponse(
         items=[
             ProjectResponse(
@@ -73,7 +91,7 @@ async def list_projects(db: Session = Depends(get_db)) -> ProjectListResponse:
             )
             for p in items
         ],
-        total=len(items),
+        total=total,
     )
 
 
@@ -111,6 +129,29 @@ async def create_project(
         action="create",
         payload={"actor": identity.email, "title": payload.title},
     ))
+    
+    # Upsert TTS provider config if provided
+    if payload.tts_provider_id:
+        config_repo = ProviderConfigRepository(db)
+        config_repo.upsert(
+            project_id=project.id,
+            provider_kind="tts",
+            provider_id=payload.tts_provider_id,
+            config=payload.tts_config or {},
+            is_active=True,
+        )
+    
+    # Upsert Translation provider config if provided
+    if payload.translate_provider_id:
+        config_repo = ProviderConfigRepository(db)
+        config_repo.upsert(
+            project_id=project.id,
+            provider_kind="translate",
+            provider_id=payload.translate_provider_id,
+            config=payload.translate_config or {},
+            is_active=True,
+        )
+    
     db.commit()
     db.refresh(project)
     return ProjectResponse(
@@ -132,6 +173,36 @@ async def get_project(project_id: UUID, db: Session = Depends(get_db)) -> Projec
     project = ProjectRepository(db).get(project_uuid)
     if project is None:
         raise HTTPException(status_code=404, detail="project not found")
+    return ProjectResponse(
+        id=project.id,
+        title=project.title,
+        quality_mode=QualityMode(project.quality_mode),
+        status=WorkflowStatus(project.status),
+        created_at=project.created_at,
+    )
+
+
+@router.put("/projects/{project_id}", response_model=ProjectResponse, tags=["projects"])
+async def update_project(
+    project_id: UUID,
+    payload: ProjectUpdate,
+    identity: UserIdentity = Depends(get_identity),
+    db: Session = Depends(get_db),
+) -> ProjectResponse:
+    """Update project metadata (currently only title)."""
+    require_project_role(project_id, Role.EDITOR, db=db, identity=identity)
+    repo = ProjectRepository(db)
+    project = repo.get(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    
+    # Update fields
+    if payload.title is not None:
+        project.title = payload.title
+    
+    db.commit()
+    db.refresh(project)
+    
     return ProjectResponse(
         id=project.id,
         title=project.title,
@@ -568,3 +639,10 @@ def _provider_config_response(row) -> ProviderConfigResponse:
         config=row.config,
         is_active=row.is_active,
     )
+
+
+
+
+# Duplicate endpoint removed - now handled by routers_providers.py
+# @router.get("/providers/{kind}/metadata", response_model=dict, tags=["providers"])
+# See: translator_api.routers_providers for the active implementation

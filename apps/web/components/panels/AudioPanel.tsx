@@ -14,30 +14,27 @@ const tracks = [
   { id: "sfx", label: "SFX", color: theme.speaker4 },
 ];
 
-const DEFAULT_GAINS: Record<string, number> = { original: 1, voice_vi: 1, music: 0.5, sfx: 0.7 };
-const GAINS_KEY = "translator_audio_gains";
-
 export function AudioPanel() {
   const [muted, setMuted] = useState<Record<string, boolean>>({});
   const [solo, setSolo] = useState<Record<string, boolean>>({});
-  const [gains, setGains] = useState<Record<string, number>>(() => {
-    if (typeof window === "undefined") return DEFAULT_GAINS;
-    try {
-      const raw = window.localStorage.getItem(GAINS_KEY);
-      return raw ? JSON.parse(raw) : DEFAULT_GAINS;
-    } catch {
-      return DEFAULT_GAINS;
-    }
-  });
+  const audioMixGains = useEditor((s) => s.audioMixGains);
+  const setAudioMixGain = useEditor((s) => s.setAudioMixGain);
+  const setAudioMixGains = useEditor((s) => s.setAudioMixGains);
   const projectId = useEditor((s) => s.projectId);
   const [processing, setProcessing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [musicInfo, setMusicInfo] = useState<any>(null);
   const { toast } = useToast();
 
-  // Persist gain changes so they survive reloads.
+  // Load music info on mount
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(GAINS_KEY, JSON.stringify(gains));
-  }, [gains]);
+    if (!projectId) return;
+    api.getMusicTrack(projectId).then((data) => {
+      setMusicInfo(data.music);
+    }).catch(() => {
+      // No music uploaded yet
+    });
+  }, [projectId]);
 
   function toggleMute(id: string) {
     setMuted((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -73,9 +70,9 @@ export function AudioPanel() {
     }
     setProcessing(true);
     try {
-      const result = await api.autoMixAudio(projectId, gains);
+      const result = await api.autoMixAudio(projectId, audioMixGains);
       if (result?.gains) {
-        setGains(result.gains);
+        setAudioMixGains(result.gains);
         toast("Đã cân bằng mix tự động", "success");
       }
     } catch (err) {
@@ -86,37 +83,75 @@ export function AudioPanel() {
     }
   }
 
-  async function handleRenderMix() {
-    if (!projectId) {
-      toast("Vui lòng chọn project trước", "warn");
-      return;
-    }
-    setProcessing(true);
-    try {
-      const result = await api.renderAudioMix(projectId, gains);
-      if (result?.audio_url) {
-        window.open(result.audio_url, "_blank");
-        toast("Đã render mix, đang mở audio…", "success");
-      } else {
-        toast("Render mix không trả về audio_url", "warn");
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast(`Render mix thất bại: ${msg}`, "danger");
-    } finally {
-      setProcessing(false);
-    }
-  }
-
-  async function handlePreviewMix() {
-    // Quick preview uses the same render endpoint; surfaces the result inline.
-    await handleRenderMix();
-  }
-
   function handleResetGains() {
-    setGains({ ...DEFAULT_GAINS });
+    setAudioMixGains({ original: 1, voice_vi: 1, music: 0.5, sfx: 0.7 });
     setMuted({});
     setSolo({});
+  }
+
+  async function handleMusicUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !projectId) return;
+
+    // Validate file type
+    if (!file.type.startsWith("audio/")) {
+      toast("Vui lòng chọn file audio (MP3, WAV, etc.)", "danger");
+      return;
+    }
+
+    // Validate file size (50MB max)
+    if (file.size > 50 * 1024 * 1024) {
+      toast("File quá lớn (tối đa 50MB)", "danger");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      // Step 1: Get presign URL
+      const presignData = await api.presignMusicAsset(projectId, {
+        filename: file.name,
+        mime: file.type,
+        size: file.size,
+      });
+
+      // Step 2: Upload file to storage
+      const uploadHeaders = new Headers(presignData.headers || {});
+      uploadHeaders.set("Content-Type", file.type);
+
+      const uploadResponse = await fetch(presignData.url, {
+        method: "PUT",
+        headers: uploadHeaders,
+        body: file,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed: ${uploadResponse.statusText}`);
+      }
+
+      // Step 3: Create music track
+      const trackResult = await api.createMusicTrack(projectId, {
+        asset_id: presignData.asset_id,
+      });
+
+      setMusicInfo({
+        asset_id: presignData.asset_id,
+        track_id: trackResult.track_id,
+        storage_key: trackResult.storage_key,
+        filename: file.name,
+        size: file.size,
+        mime: file.type,
+        url: `/local-assets/${trackResult.storage_key}`,
+      });
+
+      toast("Đã upload nhạc nền thành công", "success");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast(`Upload thất bại: ${msg}`, "danger");
+    } finally {
+      setUploading(false);
+      // Reset input
+      e.target.value = "";
+    }
   }
 
   return (
@@ -148,30 +183,53 @@ export function AudioPanel() {
           >
             {processing ? "..." : "⚖️"} Cân bằng tự động
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={processing}
-            onClick={handlePreviewMix}
-            title="Render mix hiện tại rồi mở audio để nghe"
-          >
-            {processing ? "..." : "🎧"} Nghe thử
-          </Button>
-          <Button
-            size="sm"
-            variant="primary"
-            disabled={processing}
-            onClick={handleRenderMix}
-          >
-            {processing ? "..." : "🎵"} Render mix
-          </Button>
         </div>
+      </div>
+
+      {/* Music upload section */}
+      <div
+        style={{
+          padding: "12px",
+          borderBottom: `1px solid ${theme.border}`,
+          background: theme.bgPanel,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <strong style={{ fontSize: 12 }}>🎵 Nhạc nền</strong>
+          {musicInfo && (
+            <span style={{ fontSize: 11, color: theme.textMuted }}>
+              {musicInfo.filename}
+            </span>
+          )}
+        </div>
+        <label style={{ display: "inline-block", cursor: uploading ? "default" : "pointer" }}>
+          <input
+            type="file"
+            accept="audio/*"
+            onChange={handleMusicUpload}
+            disabled={uploading}
+            style={{ display: "none" }}
+          />
+          <Button
+            size="sm"
+            variant={musicInfo ? "ghost" : "default"}
+            disabled={uploading}
+            onClick={(e) => e.preventDefault()}
+          >
+            {uploading ? "⏳ Đang tải..." : musicInfo ? "📁 Thay đổi" : "📁 Upload nhạc nền"}
+          </Button>
+        </label>
+        {musicInfo && (
+          <div style={{ fontSize: 10, color: theme.textMuted, marginTop: 4 }}>
+            {(musicInfo.size / 1024 / 1024).toFixed(2)} MB • {musicInfo.mime}
+          </div>
+        )}
       </div>
       
       {tracks.map((t) => {
         const isMuted = muted[t.id];
         const isSolo = solo[t.id];
-        const gain = isMuted ? 0 : gains[t.id] ?? 1;
+        const gain = isMuted ? 0 : audioMixGains[t.id] ?? 1;
         
         return (
           <div
@@ -214,7 +272,7 @@ export function AudioPanel() {
               max={1.5}
               step={0.01}
               value={gain}
-              onChange={(e) => setGains((prev) => ({ ...prev, [t.id]: parseFloat(e.target.value) }))}
+              onChange={(e) => setAudioMixGain(t.id, parseFloat(e.target.value))}
               style={{ width: "100%" }}
               disabled={isMuted}
             />
@@ -230,13 +288,13 @@ export function AudioPanel() {
           Mẹo: Nhấn M để tắt tiếng, S để chỉ nghe kênh đó
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button size="sm" variant="ghost" onClick={() => setGains((p) => ({ ...p, voice_vi: 1.2 }))}>
+          <Button size="sm" variant="ghost" onClick={() => setAudioMixGain("voice_vi", 1.2)}>
             Tăng voice +20%
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => setGains((p) => ({ ...p, music: 0.3 }))}>
+          <Button size="sm" variant="ghost" onClick={() => setAudioMixGain("music", 0.3)}>
             Giảm nhạc -50%
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => setGains({ original: 0, voice_vi: 1, music: 0, sfx: 0 })}>
+          <Button size="sm" variant="ghost" onClick={() => setAudioMixGains({ original: 0, voice_vi: 1, music: 0, sfx: 0 })}>
             Chỉ voice VI
           </Button>
         </div>

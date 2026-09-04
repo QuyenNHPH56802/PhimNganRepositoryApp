@@ -86,7 +86,10 @@ async def main() -> None:
             client,
             task_queue=PROJECT_QUEUE,
             workflows=workflow_classes,
-            activities=CPU_ACTIVITIES + ASR_ACTIVITIES + DIARIZE_ACTIVITIES + TTS_ACTIVITIES + SEPARATION_ACTIVITIES,
+            # FIXED: Removed stub activities (asr_transcribe, diarize_segments, translate_segments)
+            # from PROJECT_QUEUE to prevent stub execution. Real providers are registered on
+            # dedicated queues (ASR_QUEUE, DIARIZE_QUEUE, CPU_QUEUE).
+            activities=CPU_ACTIVITIES + TTS_ACTIVITIES + SEPARATION_ACTIVITIES,
         ),
         Worker(client, task_queue=ASR_QUEUE, workflows=[], activities=ASR_ACTIVITIES),
         Worker(client, task_queue=DIARIZE_QUEUE, workflows=[], activities=DIARIZE_ACTIVITIES),

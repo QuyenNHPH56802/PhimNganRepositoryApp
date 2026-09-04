@@ -11,12 +11,9 @@ from temporalio import activity
 
 from translator_api.models import AuditLog, VoiceProfile
 from translator_api.providers.base import ConsentMissing
-from translator_api.providers.voice_clone.cosyvoice import CosyVoice3VoiceCloneProvider
+from translator_api.providers.voice_clone.cosyvoice import CosyVoice3VoiceCloneProvider  # noqa: F401
 from translator_api.providers.voice_clone.vieneu import VieNeuVoiceCloneProvider
-from translator_api.providers.voice_clone.base import (
-    VoiceCloneInput,
-    VoiceEmbeddingInput,
-)
+from translator_api.providers.voice_clone.base import VoiceCloneInput
 from translator_api.repositories.workflow_repository import WorkflowStepRepository
 from translator_worker.deps import build_storage, make_worker_session_factory
 

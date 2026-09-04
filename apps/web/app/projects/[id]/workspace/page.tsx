@@ -17,6 +17,7 @@ import { TtsPanel } from "@/components/panels/TtsPanel";
 import { SubtitlePanel } from "@/components/panels/SubtitlePanel";
 import { AudioPanel } from "@/components/panels/AudioPanel";
 import { RenderPanel } from "@/components/panels/RenderPanel";
+import { ProgressPanel } from "@/components/panels/ProgressPanel";
 import { useWorkflowStream } from "@/lib/useWorkflowStream";
 import { useShortcuts } from "@/lib/useShortcuts";
 import { useToast } from "@/lib/toast";
@@ -30,6 +31,7 @@ const tabs: { id: Panel; label: string }[] = [
   { id: "subtitle", label: "Phụ đề" },
   { id: "audio", label: "Âm thanh" },
   { id: "render", label: "Render" },
+  { id: "progress", label: "Tiến trình" },
 ];
 
 const WORKFLOW_STEP_LABELS: Record<string, string> = {
@@ -124,10 +126,17 @@ export default function WorkspacePage() {
     }
     setTitleSaving(true);
     setTitleError(null);
-    // Backend doesn't expose PUT /projects/{id} yet — optimistically update
-    // local title and surface a hint so the user knows about the limitation.
-    setTitleError("Lưu ý: chức năng đổi tên project qua API chưa được hỗ trợ — tiêu đề hiển thị sẽ được giữ tạm.");
-    setTitleSaving(false);
+    try {
+      await fetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle }),
+      });
+      setTitleSaving(false);
+    } catch (error) {
+      setTitleError("Lỗi khi lưu tiêu đề project");
+      setTitleSaving(false);
+    }
   }
 
   useEffect(() => {
@@ -445,7 +454,11 @@ export default function WorkspacePage() {
     return () => clearTimeout(timer);
   }, [pipelineDone, projectId, loadPanelData]);
 
-  const PanelEl = useMemo(() => {
+  const ActivePanel = useMemo(() => {
+    if (panel === "progress") {
+      return () => <ProgressPanel projectId={projectId} workflowId={workflowId} />;
+    }
+    
     switch (panel) {
       case "transcript": return TranscriptPanel;
       case "translation": return TranslationPanel;
@@ -456,9 +469,7 @@ export default function WorkspacePage() {
       case "render": return RenderPanel;
       default: return TranscriptPanel;
     }
-  }, [panel]);
-
-  const ActivePanel = PanelEl;
+  }, [panel, projectId, workflowId]);
   const currentVideoSrc = videoMode === "rendered" && renderedVideoSrc ? renderedVideoSrc : rawVideoSrc;
 
   // Snapshot of all panel data — used to detect "pipeline finished but no
@@ -539,9 +550,14 @@ export default function WorkspacePage() {
       >
         <strong style={{ fontSize: 14 }}>Không gian làm việc</strong>
         <span style={{ fontSize: 11, color: theme.textMuted }}>Dự án: {projectId.slice(0, 8)}…</span>
-        {renderedVideoSrc && !pipelineDone && (
+        {pipelineDone && (
           <span style={{ fontSize: 11, background: "rgba(16, 185, 129, 0.15)", color: "#10b981", padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>
             ✓ Video đã xử lý hoàn chỉnh
+          </span>
+        )}
+        {!pipelineDone && orderedSteps.length > 0 && (
+          <span style={{ fontSize: 11, background: "rgba(251, 191, 36, 0.15)", color: "#f59e0b", padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>
+            ⏳ Đang xử lý ({overallPct}%)
           </span>
         )}
         <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center", fontSize: 11, color: theme.textMuted }}>
@@ -561,101 +577,6 @@ export default function WorkspacePage() {
           <Button size="sm" onClick={redo}>↷ Redo</Button>
         </div>
       </header>
-
-      {/* Pipeline progress bar */}
-      {orderedSteps.length > 0 && (
-        <div
-          style={{
-            padding: "10px 16px",
-            borderBottom: `1px solid ${theme.border}`,
-            background: theme.bgElevated,
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <StatusDot
-              status={
-                pipelineDone
-                  ? "ready"
-                  : orderedSteps.some((s) => s.status === "failed")
-                    ? "failed"
-                    : "processing"
-              }
-            />
-            <strong style={{ fontSize: 13 }}>
-              {pipelineDone
-                ? "✅ Pipeline hoàn tất"
-                : "⏳ Đang xử lý pipeline"}
-            </strong>
-            <span style={{ fontSize: 11, color: theme.textMuted }}>
-              Tổng tiến độ: {overallPct}%
-              {streamStatus === "error" && " • mất kết nối stream (đang thử lại)"}
-            </span>
-          </div>
-          <ProgressBar value={overallPct} />
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-              gap: 6,
-            }}
-          >
-            {orderedSteps.map((s) => {
-              const isDone = s.status === "ready";
-              const isFailed = s.status === "failed";
-              const isProcessing = s.status === "processing";
-              const fg = isFailed
-                ? theme.danger
-                : isDone
-                  ? theme.success
-                  : isProcessing
-                    ? theme.accent
-                    : theme.textMuted;
-              return (
-                <div
-                  key={s.id || s.name}
-                  style={{
-                    padding: "6px 8px",
-                    border: `1px solid ${isFailed ? theme.danger : isDone ? "#14532d" : theme.border}`,
-                    background: theme.bgPanel,
-                    borderRadius: 6,
-                    fontSize: 11,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      color: fg,
-                      fontWeight: 600,
-                    }}
-                  >
-                    <StatusDot status={s.status} />
-                    <span>{WORKFLOW_STEP_LABELS[s.name] ?? s.name}</span>
-                  </div>
-                  <div style={{ marginTop: 4 }}>
-                    <ProgressBar value={s.progress_pct ?? 0} height={3} />
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginTop: 4,
-                      color: theme.textMuted,
-                    }}
-                  >
-                    <span style={{ textTransform: "capitalize" }}>{s.status}</span>
-                    <span>{(s.progress_pct ?? 0).toFixed(0)}%</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       <nav
         style={{
