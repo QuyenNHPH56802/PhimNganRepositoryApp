@@ -47,3 +47,9 @@ logs/
 # Local test artifacts
 *.tmp
 *.bak
+
+# Next.js build cache
+.next/
+out/
+*.tsbuildinfo
+test-results/

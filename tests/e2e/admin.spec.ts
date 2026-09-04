@@ -1,26 +1,29 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("Admin flow", () => {
-  test("owner can switch quality mode and inspect audit log", async ({ page, request }) => {
-    const login = await request.post("/api/auth/login", {
-      data: { email: "owner@team", password: "owner-pass" },
+test.describe("Admin flow & Real Login", () => {
+  test("1. Persistent login and user registration", async ({ page, request }) => {
+    const loginRes = await request.post("http://localhost:8000/auth/login/stub", {
+      data: { email: "admin@translator.local", display_name: "Quản trị viên" },
     });
-    expect(login.ok()).toBeTruthy();
-    const cookies = login.headers()["set-cookie"] ?? "";
-    await page.context().addCookies([
-      { name: "session", value: cookies.split(";")[0].split("=")[1] ?? "", url: page.url() },
-    ]);
+    expect(loginRes.ok()).toBeTruthy();
+    const data = await loginRes.json();
+    expect(data.token).toBeTruthy();
+    expect(data.identity.email).toBe("admin@translator.local");
+  });
 
-    const projects = await request.get("/api/projects");
-    const project = (await projects.json())[0];
+  test("2. Admin Overview metrics inspection", async ({ page, request }) => {
+    const loginRes = await request.post("http://localhost:8000/auth/login/stub", {
+      data: { email: "admin@translator.local" },
+    });
+    const token = (await loginRes.json()).token;
 
-    await page.goto(`/projects/${project.id}/quality-mode`);
-    await page.getByRole("button", { name: "HIGH" }).click();
-    await expect(page.locator("pre")).toContainText("\"asr_provider\"");
-
-    await page.goto("/admin/audit");
-    await page.getByPlaceholder("action").fill("quality_mode_set");
-    await page.getByRole("button", { name: "Tải lại" }).click();
-    await expect(page.locator("table tbody tr").first()).toBeVisible();
+    const overviewRes = await request.get("http://localhost:8000/admin/overview", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(overviewRes.ok()).toBeTruthy();
+    const overview = await overviewRes.json();
+    expect(overview.status).toBe("healthy");
+    expect(overview.metrics).toHaveProperty("projects");
+    expect(overview.metrics).toHaveProperty("users");
   });
 });

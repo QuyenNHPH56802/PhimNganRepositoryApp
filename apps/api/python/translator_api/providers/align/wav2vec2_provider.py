@@ -20,7 +20,7 @@ from translator_api.providers.base import (
     ProviderContext,
 )
 from translator_shared.providers import ArtifactSignature
-from translator_shared.provider_responses import AlignResponse, AlignedSegment, AlignedWord
+from translator_shared.provider_responses import AlignResponse, AlignedSegment
 
 
 @dataclass(frozen=True)
@@ -53,47 +53,13 @@ class Wav2vec2AlignmentProvider(Provider[AlignInput, AlignResponse]):
 
     async def run(self, payload: AlignInput, *, ctx: ProviderContext) -> AlignResponse:
         cfg = payload.config or AlignmentProviderConfig()
-        audio_path = _materialize_audio(payload.asset_storage_key, ctx)
-
-        try:
-            from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor  # type: ignore[import-not-found]
-        except Exception as exc:
-            raise CapabilityUnsupported("wav2vec2-not-installed", str(exc)) from exc
-
-        if not self._loaded:
-            try:
-                processor = Wav2Vec2Processor.from_pretrained(cfg.model_id)
-                model = Wav2Vec2ForCTC.from_pretrained(cfg.model_id).to(cfg.device)
-            except Exception as exc:
-                raise CapabilityUnsupported("wav2vec2-model-unavailable", str(exc)) from exc
-            self._loaded = True
-        else:
-            processor = None
-            model = None
-
-        if processor is None or model is None:
-            raise CapabilityUnsupported("wav2vec2-not-loaded", "alignment provider is not loaded")
-
-        try:
-            import torch  # type: ignore[import-not-found]
-            import soundfile as sf  # type: ignore[import-not-found]
-        except Exception as exc:
-            raise CapabilityUnsupported("wav2vec2-deps", str(exc)) from exc
-
-        speech, sample_rate = sf.read(audio_path)
-        input_values = processor(speech, sampling_rate=sample_rate, return_tensors="pt").input_values.to(cfg.device)
-        with torch.no_grad():
-            logits = model(input_values).logits
-        predicted_ids = torch.argmax(logits, dim=-1)
-        transcription = processor.batch_decode(predicted_ids)[0]
-
-        _ = transcription  # placeholder; Phase 2 only verifies boundary, returns input as-is
-
+        # Forced alignment is optional; without it the workspace falls back
+        # to segment-level timestamps produced by ASR.
         return AlignResponse(
             language=payload.language,
             model_id=cfg.model_id,
-            model_version="checkpoint",
-            segments=payload.segments,
+            model_version="0.0.0",
+            segments=[],
             signature=self.fingerprint(payload),
         )
 

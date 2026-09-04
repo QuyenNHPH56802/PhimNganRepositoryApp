@@ -9,14 +9,17 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
+import os
+
+
 class AsrProviderConfig(BaseModel):
     provider_id: str = "whisperx_faster_whisper"
-    model_id: str = "large-v3"
-    device: str = "cuda"
-    compute_type: str = "float16"
+    model_id: str = Field(default_factory=lambda: os.getenv("WHISPER_MODEL", "base"))
+    device: str = Field(default_factory=lambda: os.getenv("WHISPER_DEVICE", "cpu"))
+    compute_type: str = Field(default_factory=lambda: os.getenv("WHISPER_COMPUTE_TYPE", "int8"))
     vad_filter: bool = True
     beam_size: int = 5
-    hf_token: str | None = None
+    hf_token: str | None = Field(default_factory=lambda: os.getenv("HF_TOKEN"))
 
 
 class AlignmentProviderConfig(BaseModel):

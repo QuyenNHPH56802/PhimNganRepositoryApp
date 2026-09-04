@@ -9,7 +9,6 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 from translator_api.providers.base import (
     CapabilityUnsupported,
@@ -211,7 +210,6 @@ class SpeedRate:
         """Strip leading/trailing silence from the audio clip."""
         cfg = self._resolved_config()
         threshold = f"{cfg.silence_threshold_db}dB"
-        min_dur = f"{cfg.silence_min_duration_s}"
         output = self._tmp_path(".wav")
         cmd = [
             cfg.ffmpeg_path,

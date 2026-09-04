@@ -18,8 +18,15 @@ class AssetRepository:
     def get(self, asset_id: UUID) -> Asset | None:
         return self.db.get(Asset, asset_id)
 
-    def list_for_project(self, project_id: UUID) -> list[Asset]:
-        stmt = select(Asset).where(Asset.project_id == project_id).order_by(Asset.uploaded_at.desc())
+    def list_for_project(self, project_id: UUID, limit: int = 50, offset: int = 0) -> list[Asset]:
+        """List assets for a project with pagination support."""
+        stmt = (
+            select(Asset)
+            .where(Asset.project_id == project_id)
+            .order_by(Asset.uploaded_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
         return list(self.db.execute(stmt).scalars())
 
     def add(self, asset: Asset) -> Asset:

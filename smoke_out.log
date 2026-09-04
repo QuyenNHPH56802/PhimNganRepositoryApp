@@ -1,0 +1,98 @@
+======================================================================
+SMOKE TEST TẦNG 1 — FOUNDATION
+======================================================================
+✓ GET /                            200 Dashboard                      (75ms)
+✓ GET /projects                    200 Projects list                  (67ms)
+✓ GET /projects/new                200 New project form               (73ms)
+✓ GET /voice                       200 Voice library                  (43ms)
+✓ GET /settings                    200 Settings                       (63ms)
+✓ GET /admin                       200 Admin                          (44ms)
+✓ GET /api/healthz                 200 Healthz proxy                  (31ms)
+----------------------------------------------------------------------
+Backend direct probe:
+✓ GET /healthz                     200 (4ms)                          
+✓ GET /capabilities                200 (5ms)                          
+✓ GET /auth-debug                  200 (3ms)                          
+======================================================================
+PASS: 10   FAIL: 0
+API INTEGRATION TEST
+======================================================================
+✓ GET /projects              200  total=2
+✓ POST /projects             201  id=96561b91-6783-464a-8ddc-0794d75b89e3
+✓ GET /projects/{id}         200  title="SmokeTest-1788316986073"
+✓ GET /projects/{id}/workflows 200  empty=true
+✓ GET provider-configs        200  body=[]
+✓ GET transcript              200  body={"segments":[]}
+✓ GET voices                  200  body={"items":[]}
+✓ GET /api/admin/voice-profiles 200  body=[]
+✓ GET /api/admin/datasets     200  body={"items":[]}
+✓ DELETE /projects/{id}      204
+======================================================================
+PASS: 10   FAIL: 0
+CONTENT VERIFICATION
+======================================================================
+✓ /                    len= 13887  Dashboard có title VI
+✓ /                    len= 13887  Dashboard có stat cards
+✓ /projects            len= 12298  Projects page có content
+✓ /projects/new        len= 15449  Form tạo project có field
+✓ /voice               len= 12381  Voice page render
+✓ /settings            len= 18304  Settings render
+✓ /admin               len= 13806  Admin render
+======================================================================
+PASS: 7   FAIL: 0
+WORKSPACE PAGE SMOKE (hard-timeout)
+======================================================================
+Project: 21e7b719-c873-4603-88d3-75197da44fa1
+
+✓ SSR workspace page     200 len=32959
+✓ SSR project detail     200 len=14698
+✓ SSR quality-mode       200 len=14015
+✓ SSR audit              200 len=13760
+✓ SSR upload             200 len=15124
+✓ SSR workflow detail    200 len=12577
+Streaming endpoints:
+✓ SSE backend direct         200 bytes=13 earlyExit=true
+✓ SSE via web proxy          n/a bytes=0 earlyExit=false (warning if buffered by Next dev server)
+✓ HEAD proxy-video           404
+======================================================================
+PASS: 9   FAIL: 0
+PANEL ENDPOINT PROBE
+======================================================================
+Using project: 21e7b719-c873-4603-88d3-75197da44fa1 (Smoke Test Project)
+----------------------------------------------------------------------
+✓ asset-url          GET  200  {"url":null,"asset_id":null,"rendered_url":null}
+✓ transcript         GET  200  {"segments":[]}
+✓ translation        GET  200  {"segments":[]}
+✓ speakers           GET  200  {"items":[]}
+✓ voices             GET  200  {"items":[]}
+✓ subtitles          GET  200  {"segments":[]}
+✓ audio              GET  200  {"segments":[]}
+✓ provider-configs   GET  200  []
+✓ quality-mode       GET  200  {"project_id":"21e7b719-c873-4603-88d3-75197da44fa1","mode":"balanced","policy":
+======================================================================
+PASS: 9   FAIL: 0
+UPLOAD + WORKFLOW FLOW
+======================================================================
+✓ POST /projects -> 5fcb6ae3-0e12-4c61-8230-9300103fb95c
+✓ POST /projects/{id}/assets:presign -> 200 {"key":"projects/5fcb6ae3-0e12-4c61-8230-9300103fb95c/assets/fb764749-e4c8-4702-8ccc-3a871bb9929b/ra
+✓ POST /projects/{id}/workflows -> 200 workflow_id=project-5fcb6ae3-0e12-4c61-8230-9300103fb95c
+✓ GET /projects/{id}/workflows/{wid} -> 200
+✓ GET .../steps -> 200 body=[]
+✓ GET /workflows/{wid}/events -> 200 first bytes: : heartbeat 
+✗ POST /workflows/{wid}/cancel -> 404
+✓ DELETE /projects/{id} -> 204
+======================================================================
+PASS: 7   FAIL: 1
+RENDER + TTS + AUDIO + SUBTITLE FLOW
+======================================================================
+Using: 21e7b719-c873-4603-88d3-75197da44fa1
+----------------------------------------------------------------------
+Translation IDs: (none)
+✗ POST TTS generate (empty=will 400) 400  {"detail":"segment_ids is required"}
+✓ POST TTS preview               200  {"audio_url":"/local-assets/tts/project-21e7b719-c873-4603-88d3-75197da44fa1/pre
+✗ POST subtitles generate     404  {"detail":"no translation version available for project 21e7b719-c873-4603-88d3-
+✓ POST audio auto-mix        200  {"ok":true,"gains":{"original":0.0,"voice_vi":1.0,"music":0.3,"sfx":0.7}}
+✗ POST audio render         404  {"detail":"no TTS audio segments found for this project; generate TTS first"}
+✗ POST render                 404  {"detail":"no source video uploaded for project 21e7b719-c873-4603-88d3-75197da4
+======================================================================
+PASS: 2   FAIL: 4

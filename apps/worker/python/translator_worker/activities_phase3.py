@@ -3,6 +3,7 @@ separation, mix, dubbing align, render, export, cleanup."""
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -10,14 +11,10 @@ from uuid import UUID
 from temporalio import activity
 
 from translator_api.models import (
-    AudioTrack,
     Export,
     Glossary,
     GlossaryTerm,
-    Project,
-    ProviderConfig,
     RenderJob,
-    SubtitleTrack,
     TranslationSegment as TxModelSegment,
     TranslationVersion,
     VoiceProfile,
@@ -27,7 +24,6 @@ from translator_api.models import (
 from translator_api.providers.base import ProviderContext, get_default_registry
 from translator_api.repositories.asset_repository import AssetRepository
 from translator_api.repositories.provider_config_repository import ProviderConfigRepository
-from translator_api.repositories.project_repository import ProjectRepository
 from translator_api.repositories.translation_repository import TranslationVersionRepository
 from translator_api.providers.cleanup.orphan import OrphanCleanupProvider
 from translator_api.providers.dubbing.align import DubbingAlignInput, FfmpegAtempoAlignProvider
@@ -36,7 +32,6 @@ from translator_api.providers.mix.ffmpeg_mix import FfmpegMixProvider, MixInput
 from translator_api.providers.qa.rule_based import QaInput, RuleBasedQaProvider
 from translator_api.providers.registry_constants import (
     AUDIO_SEPARATION,
-    CLEANUP,
     DUBBING,
     EXPORT,
     MIX,
@@ -54,11 +49,7 @@ from translator_api.providers.translate.base import (
     GlossaryTerm as TxGlossaryTerm,
     TranslationInput,
 )
-from translator_api.providers.tts.base import TtsInput
 from translator_api.providers.tts.vietvoice import VietVoiceTtsProvider
-from translator_api.repositories.asset_repository import AssetRepository
-from translator_api.repositories.provider_config_repository import ProviderConfigRepository
-from translator_api.repositories.project_repository import ProjectRepository
 from translator_api.repositories.workflow_repository import (
     WorkflowStepRepository,
 )
@@ -77,6 +68,7 @@ from translator_shared.provider_responses_extra import (
     CleanupReport,
     TranslationSegment,
 )
+from translator_worker.activities import _empty_signature
 from translator_worker.deps import build_storage, make_worker_session_factory
 
 
@@ -88,16 +80,20 @@ def _factory():
     return make_worker_session_factory()
 
 
-def _ctx(project_id: str, asset_id: str | None, session) -> ProviderContext:
-    return ProviderContext(
+def _ctx(project_id: str, asset_id: str | None, session, workflow_id: UUID | None = None) -> ProviderContext:
+    """Create provider context with optional workflow_id for namespacing storage keys."""
+    ctx = ProviderContext(
         project_id=project_id,
         asset_id=asset_id,
         db_session=session,
         storage=build_storage(),
     )
+    if workflow_id:
+        ctx.extra["workflow_id"] = str(workflow_id)
+    return ctx
 
 
-def _record_step(session, project_id: str, name: str, *, status: str, signature: str | None = None, message: str | None = None) -> None:
+def _record_step(session, project_id: str, name: str, *, status: str, signature: str | None = None, message: str | None = None, attempt: int = 0) -> None:
     repo = WorkflowStepRepository(session)
     workflow = _latest_workflow(session, UUID(project_id))
     if workflow is None:
@@ -106,6 +102,7 @@ def _record_step(session, project_id: str, name: str, *, status: str, signature:
         workflow_id=workflow.id,
         name=name,
         status=status,
+        attempt=attempt,
         progress_pct=100 if status == "ready" else 0,
         progress_message=message,
         artifact_signature=signature,
@@ -128,7 +125,7 @@ def _resolve_provider_config(session, project_id: UUID, kind: str) -> dict[str, 
     config = repo.get_active(kind, project_id=project_id)
     if config is None:
         return None
-    return config.config
+    return {"provider_id": config.provider_id, **config.config}
 
 
 def _serialize_terms(terms: list[GlossaryTerm]) -> list[TxGlossaryTerm]:
@@ -140,19 +137,98 @@ def _serialize_terms(terms: list[GlossaryTerm]) -> list[TxGlossaryTerm]:
 
 @activity.defn(name="normalize_chinese")
 async def normalize_chinese(project_id: str, asset_id: str | None = None) -> dict:
+    """Lightweight text normalization for Chinese/multilingual text.
+    
+    Normalizes:
+    - Whitespace (collapse multiple spaces, trim)
+    - Full-width punctuation to half-width
+    - Common Unicode normalization (NFC)
+    
+    Note: Heavy dependencies like jieba tokenization deferred to future phase.
+    """
     factory = _factory()
     session = factory()
     try:
         _record_step(session, project_id, "normalize_chinese", status="processing")
-        # Phase 3: light-weight normalization only (no jieba dependency).
-        # Full tokenization arrives when jieba is allowed at runtime.
-        return {"ok": True, "signature": "phase3-normalize-stub"}
+        
+        from translator_api.repositories.transcript_repository import TranscriptRepository
+        from translator_api.models import TranscriptSegment
+        import re
+        import unicodedata
+        
+        # Get latest transcript
+        tx_repo = TranscriptRepository(session)
+        latest_tx = tx_repo.latest_for_project(UUID(project_id))
+        
+        if latest_tx is None:
+            _record_step(session, project_id, "normalize_chinese", status="skipped", message="no transcript")
+            activity.logger.info("normalize_chinese skipped: no transcript for project_id=%s", project_id)
+            return {"ok": True, "normalized_count": 0, "signature": "normalize-skipped"}
+        
+        # Get all segments
+        segments = session.query(TranscriptSegment).filter_by(
+            transcript_id=latest_tx.id
+        ).order_by(TranscriptSegment.idx).all()
+        
+        if not segments:
+            _record_step(session, project_id, "normalize_chinese", status="skipped", message="no segments")
+            return {"ok": True, "normalized_count": 0, "signature": "normalize-empty"}
+        
+        # Full-width to half-width punctuation mapping
+        FULLWIDTH_TO_HALFWIDTH = str.maketrans(
+            "，。！？；：""''（）【】《》、",
+            ",.!?;:\"\"''()[]<>,,"
+        )
+        
+        normalized_count = 0
+        for segment in segments:
+            if not segment.text:
+                continue
+            
+            original_text = segment.text
+            normalized_text = original_text
+            
+            # 1. Unicode normalization (NFC - canonical composition)
+            normalized_text = unicodedata.normalize('NFC', normalized_text)
+            
+            # 2. Whitespace normalization
+            normalized_text = re.sub(r'\s+', ' ', normalized_text).strip()
+            
+            # 3. Full-width punctuation to half-width
+            normalized_text = normalized_text.translate(FULLWIDTH_TO_HALFWIDTH)
+            
+            # Update segment if text changed
+            if normalized_text != original_text:
+                segment.text = normalized_text
+                normalized_count += 1
+        
+        session.commit()
+        
+        activity.logger.info(
+            "normalize_chinese completed: %d/%d segments normalized for project_id=%s",
+            normalized_count, len(segments), project_id
+        )
+        
+        _record_step(
+            session, project_id, "normalize_chinese", 
+            status="ready", 
+            message=f"Normalized {normalized_count}/{len(segments)} segments"
+        )
+        
+        return {
+            "ok": True, 
+            "normalized_count": normalized_count,
+            "total_segments": len(segments),
+            "signature": _empty_signature("normalize_chinese").model_dump()
+        }
+        
     finally:
         session.close()
 
 
 @activity.defn(name="translate_segments")
 async def translate_segments(project_id: str, asset_id: str | None = None) -> dict:
+    activity.logger.info("✅ REAL translate_segments (writes to DB) - project_id=%s asset_id=%s", project_id, asset_id)
     factory = _factory()
     session = factory()
     try:
@@ -166,7 +242,14 @@ async def translate_segments(project_id: str, asset_id: str | None = None) -> di
         tx_repo = TranscriptRepository(session)
         latest_tx = tx_repo.latest_for_project(UUID(project_id))
         if latest_tx is None:
-            raise RuntimeError("no transcript found for project")
+            _record_step(session, project_id, "translate_segments", status="skipped", message="no transcript")
+            activity.logger.info("translate_segments skipped: no transcript for project_id=%s", project_id)
+            return {
+                "ok": True,
+                "skipped": True,
+                "reason": "no transcript found for project",
+                "signature": _empty_signature("translate_segments").model_dump(),
+            }
         from translator_api.models import TranscriptSegment
 
         source_segs = session.query(TranscriptSegment).filter_by(transcript_id=latest_tx.id).order_by(TranscriptSegment.start_ms).all()
@@ -181,8 +264,8 @@ async def translate_segments(project_id: str, asset_id: str | None = None) -> di
                     "idx": i,
                     "start_ms": int(s.start_ms),
                     "end_ms": int(s.end_ms),
-                    "display_text": s.text or "",
-                    "speaker": s.speaker or "",
+                    "display_text": (getattr(s, "raw_text", None) or getattr(s, "normalized_text", None) or getattr(s, "text", "") or ""),
+                    "speaker": (getattr(s, "speaker_label", None) or getattr(s, "speaker", "") or ""),
                 }
                 for i, s in enumerate(source_segs)
             ],
@@ -193,27 +276,7 @@ async def translate_segments(project_id: str, asset_id: str | None = None) -> di
             config=cfg,
         )
         ctx = _ctx(project_id, asset_id, session)
-        try:
-            response = await provider.run(payload, ctx=ctx)
-        except Exception as exc:
-            from translator_shared.providers import ArtifactSignature
-            from translator_shared.provider_responses_extra import TranslationResponse
-
-            activity.logger.info("translate_segments real call failed: %s", exc)
-            response = TranslationResponse(
-                provider_id=cfg.provider_id,
-                model_id=cfg.model_id,
-                prompt_version=cfg.prompt_version,
-                segments=[],
-                signature=ArtifactSignature(
-                    input_hash="pending",
-                    model_id=cfg.model_id,
-                    model_version=cfg.model_id,
-                    provider_build=cfg.provider_id,
-                    config_hash="pending",
-                    prompt_version=cfg.prompt_version,
-                ),
-            )
+        response = await provider.run(payload, ctx=ctx)
 
         # Persist the translation version + segments so TTS can read them.
         tx_version_repo = TranslationVersionRepository(session)
@@ -244,6 +307,7 @@ async def translate_segments(project_id: str, asset_id: str | None = None) -> di
             session.add(model_seg)
         session.commit()
 
+        activity.logger.info("✅ Translation saved to DB: %d segments", len(response.segments))
         _record_step(session, project_id, "translate_segments", status="ready", signature=response.signature.fingerprint())
         return response.model_dump()
     finally:
@@ -260,9 +324,10 @@ async def translation_qa(project_id: str, asset_id: str | None = None) -> dict:
         cfg = QaProviderConfig(**config_data) if config_data else QaProviderConfig()
         provider = RuleBasedQaProvider(cfg)
         latest_version = session.query(TranslationVersion).filter_by(project_id=UUID(project_id)).order_by(TranslationVersion.version.desc()).first()
+        tx_segs = session.query(TxModelSegment).filter_by(translation_version_id=latest_version.id).all() if latest_version else []
         translations = [
-            TranslationSegment(idx=idx, display_text="", tts_text="")
-            for idx, _ in enumerate(latest_version.segments if latest_version else [])
+            TranslationSegment(idx=idx, display_text=s.display_text, tts_text=s.tts_text or s.display_text)
+            for idx, s in enumerate(tx_segs)
         ]
         glossary = session.query(Glossary).filter_by(project_id=UUID(project_id), is_active=True).first()
         terms = glossary.terms if glossary else []
@@ -284,7 +349,13 @@ async def subtitle_segment(project_id: str, asset_id: str | None = None) -> dict
         cfg = SubtitleProviderConfig(**config_data) if config_data else SubtitleProviderConfig()
         provider = CpsWrapperSubtitleProvider(cfg)
         ctx = _ctx(project_id, asset_id, session)
-        response = await provider.run(SubtitleInput(translations=[], original_segments=[], config=cfg), ctx=ctx)
+        latest_version = session.query(TranslationVersion).filter_by(project_id=UUID(project_id)).order_by(TranslationVersion.version.desc()).first()
+        tx_segs = session.query(TxModelSegment).filter_by(translation_version_id=latest_version.id).all() if latest_version else []
+        translations = [
+            TranslationSegment(idx=idx, display_text=s.display_text, tts_text=s.tts_text or s.display_text)
+            for idx, s in enumerate(tx_segs)
+        ]
+        response = await provider.run(SubtitleInput(translations=translations, original_segments=[], config=cfg), ctx=ctx)
         _record_step(session, project_id, "subtitle_segment", status="ready", signature=response.signature.fingerprint())
         return response.model_dump()
     finally:
@@ -299,11 +370,11 @@ async def tts_synthesize(project_id: str, asset_id: str | None = None) -> dict:
         _record_step(session, project_id, "tts_synthesize", status="processing")
         config_data = _resolve_provider_config(session, UUID(project_id), TTS) or {}
         cfg = TtsProviderConfig(**config_data) if config_data else TtsProviderConfig()
-        try:
-            provider = get_default_registry().get(TTS, cfg.provider_id)
-        except KeyError:
-            provider = VietVoiceTtsProvider()
-        ctx = _ctx(project_id, asset_id, session)
+        
+        # Get workflow_id for storage key namespacing
+        workflow = _latest_workflow(session, UUID(project_id))
+        workflow_id = workflow.id if workflow else None
+        ctx = _ctx(project_id, asset_id, session, workflow_id)
 
         # Read translated TTS text from the latest TranslationVersion + segments.
         from translator_api.repositories.translation_repository import TranslationVersionRepository
@@ -332,45 +403,114 @@ async def tts_synthesize(project_id: str, asset_id: str | None = None) -> dict:
                 if text:
                     tts_texts.append(text)
 
+        if not tts_texts:
+            _record_step(session, project_id, "tts_synthesize", status="skipped", message="no tts text")
+            activity.logger.info("tts_synthesize skipped: no tts_text/display_text for project_id=%s", project_id)
+            return {
+                "ok": True,
+                "skipped": True,
+                "reason": "no translated text available",
+                "signature": _empty_signature("tts_synthesize").model_dump(),
+            }
+
         voice_profile = session.query(VoiceProfile).filter_by(project_id=UUID(project_id)).first()
-        text = "\n".join(tts_texts) if tts_texts else ""
-        payload = TtsInput(
-            text=text,
-            voice_profile_id=str(voice_profile.id) if voice_profile else None,
-            reference_audio_key=cfg.reference_audio_key,
-            output_storage_prefix=f"tts/{project_id}",
-            config=cfg,
-        )
+        text = "\n".join(tts_texts)
+        
+        # NEW: Try microservice first, fallback to Edge-TTS provider on failure
         import time as _time
-        from translator_worker.metrics import observe_tts
-
-        started = _time.perf_counter()
-        try:
-            response = await provider.run(payload, ctx=ctx)
-            elapsed = _time.perf_counter() - started
-            audio_seconds = (response.duration_ms / 1000.0) if getattr(response, "duration_ms", 0) else None
-            observe_tts(provider=provider.id, generate_seconds=elapsed, audio_seconds=audio_seconds)
-        except Exception as exc:
-            elapsed = _time.perf_counter() - started
-            observe_tts(provider=provider.id, generate_seconds=elapsed)
-            activity.logger.info("tts_synthesize stub: %s", exc)
-            from translator_shared.providers import ArtifactSignature
-            from translator_shared.provider_responses_extra import TtsResponse
-
-            response = TtsResponse(
-                voice_profile_id=voice_profile.id if voice_profile else None,
-                audio_storage_key=f"tts/{project_id}/{provider.id}/stub.wav",
-                duration_ms=0,
-                sample_rate=cfg.sample_rate,
-                signature=ArtifactSignature(
-                    input_hash="pending",
-                    model_id=cfg.model_id,
-                    model_version=cfg.model_id,
-                    provider_build=provider.id,
-                    config_hash="pending",
-                ),
-                fallback_used=True,
-            )
+        import urllib.request, json, base64
+        from urllib.error import HTTPError, URLError
+        from translator_api.providers.tts import EdgeTtsProvider, TtsInput
+        from translator_shared.providers import ArtifactSignature
+        from translator_shared.provider_responses_extra import TtsResponse
+        
+        tts_url = os.environ.get("TTS_SERVICE_URL", "http://tts-service:3099/synthesize")
+        req_data = {
+            "text": text[:2000],
+            "voice": cfg.model_id if cfg.model_id and "Neural" in cfg.model_id else "vi-VN-HoaiMyNeural",
+            "engine": "edge",
+        }
+        
+        # Retry logic: max 3 attempts with exponential backoff
+        max_retries = 3
+        response = None
+        last_error = None
+        fallback_used = False
+        
+        for attempt in range(max_retries):
+            try:
+                req = urllib.request.Request(
+                    tts_url,
+                    data=json.dumps(req_data).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                )
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    audio_bytes = base64.b64decode(data["audio_b64"])
+                    # Use workflow_id in storage key to prevent collisions
+                    wf_segment = f"{workflow_id}/" if workflow_id else ""
+                    audio_key = f"tts/{project_id}/{wf_segment}dubbed.mp3"
+                    ctx.storage.upload(audio_key, audio_bytes, mime="audio/mpeg")
+                    response = TtsResponse(
+                        voice_profile_id=voice_profile.id if voice_profile else None,
+                        audio_storage_key=audio_key,
+                        duration_ms=data.get("duration_ms", 1000),
+                        sample_rate=cfg.sample_rate,
+                        signature=ArtifactSignature(
+                            input_hash="tts-hash",
+                            model_id="vi-VN-HoaiMyNeural",
+                            model_version="1.0.0",
+                            provider_build="edge_tts_microservice",
+                            config_hash="tts-edge",
+                        ),
+                        fallback_used=False,
+                    )
+                    # Success - break retry loop
+                    break
+                    
+            except (HTTPError, URLError) as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    wait_seconds = 2 ** attempt
+                    activity.logger.warning(
+                        f"TTS microservice error (attempt {attempt + 1}/{max_retries}), "
+                        f"retrying in {wait_seconds}s: {str(e)}"
+                    )
+                    _time.sleep(wait_seconds)
+                else:
+                    # All retries exhausted - fallback to Edge-TTS provider
+                    activity.logger.warning(
+                        f"TTS microservice failed after {max_retries} attempts: {last_error}. "
+                        f"Falling back to Edge-TTS provider..."
+                    )
+                    fallback_used = True
+                    break
+        
+        # NEW: Fallback to Edge-TTS provider if microservice failed
+        if response is None and fallback_used:
+            try:
+                edge_provider = EdgeTtsProvider()
+                # Use workflow_id in output prefix to prevent collisions
+                wf_segment = f"{workflow_id}/" if workflow_id else ""
+                tts_input = TtsInput(
+                    text=text,
+                    voice_profile_id=cfg.model_id if cfg.model_id and "Neural" in cfg.model_id else None,
+                    output_storage_prefix=f"tts/{project_id}/{wf_segment.rstrip('/')}",
+                    config=cfg,
+                )
+                response = await edge_provider.run(tts_input, ctx=ctx)
+                response.fallback_used = True
+                activity.logger.info("Edge-TTS fallback succeeded for project_id=%s", project_id)
+            except Exception as fallback_error:
+                activity.logger.error(f"Edge-TTS fallback also failed: {fallback_error}")
+                raise RuntimeError(
+                    f"Both TTS microservice and Edge-TTS fallback failed. "
+                    f"Microservice error: {last_error}. Fallback error: {fallback_error}"
+                ) from fallback_error
+        
+        if response is None:
+            raise RuntimeError(f"TTS synthesis failed after {max_retries} attempts: {last_error}")
+        
         _record_step(session, project_id, "tts_synthesize", status="ready", signature=response.signature.fingerprint())
         return response.model_dump()
     finally:
@@ -386,29 +526,18 @@ async def audio_separate(project_id: str, asset_id: str | None = None) -> dict:
         config_data = _resolve_provider_config(session, UUID(project_id), AUDIO_SEPARATION) or {}
         cfg = SeparationProviderConfig(**config_data) if config_data else SeparationProviderConfig()
         provider = Uvr5MdxProvider()
-        ctx = _ctx(project_id, asset_id, session)
+        
+        # Get workflow_id for storage key namespacing
+        workflow = _latest_workflow(session, UUID(project_id))
+        workflow_id = workflow.id if workflow else None
+        ctx = _ctx(project_id, asset_id, session, workflow_id)
+        
         asset_repo = AssetRepository(session)
-        asset = asset_repo.list_for_project(UUID(project_id))[0]
-        try:
-            response = await provider.run(SeparationInput(asset_storage_key=asset.storage_key, config=cfg), ctx=ctx)
-        except Exception as exc:
-            activity.logger.info("audio_separate stub: %s", exc)
-            from translator_shared.providers import ArtifactSignature
-            from translator_shared.provider_responses_extra import SeparationResponse
-
-            response = SeparationResponse(
-                vocals_key="",
-                background_key="",
-                method=provider.id,
-                duration_ms=0,
-                signature=ArtifactSignature(
-                    input_hash="pending",
-                    model_id=cfg.model_id,
-                    model_version="0.0.0",
-                    provider_build=provider.id,
-                    config_hash="pending",
-                ),
-            )
+        assets = asset_repo.list_for_project(UUID(project_id))
+        if not assets:
+            raise ValueError(f"No asset found for project {project_id}")
+        asset = assets[0]
+        response = await provider.run(SeparationInput(asset_storage_key=asset.storage_key, config=cfg), ctx=ctx)
         _record_step(session, project_id, "audio_separate", status="ready", signature=response.signature.fingerprint())
         return response.model_dump()
     finally:
@@ -425,33 +554,21 @@ async def dubbing_align(project_id: str, asset_id: str | None = None) -> dict:
         cfg = DubbingAlignProviderConfig(**config_data) if config_data else DubbingAlignProviderConfig()
         provider = FfmpegAtempoAlignProvider()
         ctx = _ctx(project_id, asset_id, session)
-        try:
-            response = await provider.run(
-                DubbingAlignInput(
-                    voice_storage_key=f"tts/{project_id}/stub.wav",
-                    target_duration_ms=1000,
-                    source_duration_ms=1000,
-                    config=cfg,
-                ),
-                ctx=ctx,
+        dubbed_key = f"tts/{project_id}/dubbed.mp3"
+        if ctx.storage is None or not ctx.storage.exists(dubbed_key):
+            raise RuntimeError(
+                f"dubbing_align requires the TTS dubbed audio at '{dubbed_key}', "
+                "but it does not exist. Run tts_synthesize first."
             )
-        except Exception as exc:
-            activity.logger.info("dubbing_align stub: %s", exc)
-            from translator_shared.providers import ArtifactSignature
-            from translator_shared.provider_responses_extra import AudioMixResponse
-
-            response = AudioMixResponse(
-                output_key=f"align/{project_id}/stub.wav",
-                duration_ms=1000,
-                sample_rate=48000,
-                signature=ArtifactSignature(
-                    input_hash="pending",
-                    model_id=provider.id,
-                    model_version="0.0.0",
-                    provider_build=provider.id,
-                    config_hash="pending",
-                ),
-            )
+        response = await provider.run(
+            DubbingAlignInput(
+                voice_storage_key=dubbed_key,
+                target_duration_ms=1000,
+                source_duration_ms=1000,
+                config=cfg,
+            ),
+            ctx=ctx,
+        )
         _record_step(session, project_id, "dubbing_align", status="ready", signature=response.signature.fingerprint())
         return response.model_dump()
     finally:
@@ -467,34 +584,30 @@ async def audio_mix(project_id: str, asset_id: str | None = None) -> dict:
         config_data = _resolve_provider_config(session, UUID(project_id), MIX) or {}
         cfg = MixProviderConfig(**config_data) if config_data else MixProviderConfig()
         provider = FfmpegMixProvider()
-        ctx = _ctx(project_id, asset_id, session)
-        try:
-            response = await provider.run(
-                MixInput(
-                    voice_storage_key=f"tts/{project_id}/stub.wav",
-                    background_storage_key=None,
-                    output_storage_prefix=f"mix/{project_id}",
-                    config=cfg,
-                ),
-                ctx=ctx,
+        
+        # Get workflow_id for storage key namespacing
+        workflow = _latest_workflow(session, UUID(project_id))
+        workflow_id = workflow.id if workflow else None
+        ctx = _ctx(project_id, asset_id, session, workflow_id)
+        
+        # Construct dubbed key with workflow_id namespace
+        wf_segment = f"{workflow_id}/" if workflow_id else ""
+        dubbed_key = f"tts/{project_id}/{wf_segment}dubbed.mp3"
+        
+        if ctx.storage is None or not ctx.storage.exists(dubbed_key):
+            raise RuntimeError(
+                f"audio_mix requires the TTS dubbed audio at '{dubbed_key}', "
+                "but it does not exist. Run tts_synthesize first."
             )
-        except Exception as exc:
-            activity.logger.info("audio_mix stub: %s", exc)
-            from translator_shared.providers import ArtifactSignature
-            from translator_shared.provider_responses_extra import AudioMixResponse
-
-            response = AudioMixResponse(
-                output_key=f"mix/{project_id}/stub.wav",
-                duration_ms=0,
-                sample_rate=48000,
-                signature=ArtifactSignature(
-                    input_hash="pending",
-                    model_id=provider.id,
-                    model_version="0.0.0",
-                    provider_build=provider.id,
-                    config_hash="pending",
-                ),
-            )
+        response = await provider.run(
+            MixInput(
+                voice_storage_key=dubbed_key,
+                background_storage_key=None,
+                output_storage_prefix=f"mix/{project_id}/{wf_segment.rstrip('/')}",
+                config=cfg,
+            ),
+            ctx=ctx,
+        )
         _record_step(session, project_id, "audio_mix", status="ready", signature=response.signature.fingerprint())
         return response.model_dump()
     finally:
@@ -510,37 +623,37 @@ async def render_build(project_id: str, asset_id: str | None = None) -> dict:
         config_data = _resolve_provider_config(session, UUID(project_id), RENDER) or {}
         cfg = RenderProviderConfig(**config_data) if config_data else RenderProviderConfig()
         provider = FfmpegRenderProvider()
-        ctx = _ctx(project_id, asset_id, session)
+        
+        # Get workflow_id for storage key namespacing
+        workflow = _latest_workflow(session, UUID(project_id))
+        workflow_id = workflow.id if workflow else None
+        ctx = _ctx(project_id, asset_id, session, workflow_id)
+        
         asset_repo = AssetRepository(session)
-        asset = asset_repo.list_for_project(UUID(project_id))[0]
-        try:
-            response = await provider.run(
-                RenderInput(
-                    source_video_key=asset.storage_key,
-                    dubbed_audio_key=None,
-                    subtitle_ass_key=None,
-                    output_storage_prefix=f"render/{project_id}",
-                    config=cfg,
-                ),
-                ctx=ctx,
+        assets = asset_repo.list_for_project(UUID(project_id))
+        if not assets:
+            raise ValueError(f"No asset found for project {project_id}")
+        asset = assets[0]
+        
+        # Construct dubbed key with workflow_id namespace
+        wf_segment = f"{workflow_id}/" if workflow_id else ""
+        dubbed_key = f"tts/{project_id}/{wf_segment}dubbed.mp3"
+        
+        if ctx.storage is None or not ctx.storage.exists(dubbed_key):
+            raise RuntimeError(
+                f"render_build requires the TTS dubbed audio at '{dubbed_key}', "
+                "but it does not exist. Run tts_synthesize first."
             )
-        except Exception as exc:
-            activity.logger.info("render_build stub: %s", exc)
-            from translator_shared.providers import ArtifactSignature
-            from translator_shared.provider_responses_extra import RenderResponse
-
-            response = RenderResponse(
-                output_key=f"render/{project_id}/stub.mp4",
-                duration_ms=0,
-                validation={"size_bytes": 0},
-                signature=ArtifactSignature(
-                    input_hash="pending",
-                    model_id=provider.id,
-                    model_version="0.0.0",
-                    provider_build=provider.id,
-                    config_hash="pending",
-                ),
-            )
+        response = await provider.run(
+            RenderInput(
+                source_video_key=asset.storage_key,
+                dubbed_audio_key=dubbed_key,
+                subtitle_ass_key=None,
+                output_storage_prefix=f"render/{project_id}",
+                config=cfg,
+            ),
+            ctx=ctx,
+        )
         workflow = _latest_workflow(session, UUID(project_id))
         if workflow is not None:
             render_job = RenderJob(
@@ -568,30 +681,36 @@ async def export_assemble(project_id: str, asset_id: str | None = None) -> dict:
         cfg = ExportProviderConfig(**config_data) if config_data else ExportProviderConfig()
         render_cfg = RenderProviderConfig(**(_resolve_provider_config(session, UUID(project_id), RENDER) or {}))
         provider = FfmpegExportProvider()
-        ctx = _ctx(project_id, asset_id, session)
-        try:
-            responses = await provider.run(
-                ExportInput(
-                    render_storage_key=f"render/{project_id}/stub.mp4",
-                    formats=tuple(cfg.formats),
-                    render_config=render_cfg,
-                    export_config=cfg,
-                ),
-                ctx=ctx,
-            )
-        except Exception as exc:
-            activity.logger.info("export_assemble stub: %s", exc)
-            responses = []
+        
+        # Get workflow_id for storage key namespacing
         workflow = _latest_workflow(session, UUID(project_id))
-        if workflow is not None and responses:
-            render_job = (
-                session.query(RenderJob).filter_by(workflow_id=workflow.id).order_by(RenderJob.created_at.desc()).first()
+        workflow_id = workflow.id if workflow else None
+        ctx = _ctx(project_id, asset_id, session, workflow_id)
+        
+        render_job = (
+            session.query(RenderJob).filter_by(workflow_id=workflow.id).order_by(RenderJob.created_at.desc()).first()
+            if workflow else None
+        )
+        if render_job is None:
+            raise RuntimeError(
+                f"export_assemble requires a completed render job for project {project_id}, "
+                "but none exists. Run render_build first."
             )
-            render_job_id = render_job.id if render_job else None
+        render_key = render_job.output_storage_key
+        responses = await provider.run(
+            ExportInput(
+                render_storage_key=render_key,
+                formats=tuple(cfg.formats),
+                render_config=render_cfg,
+                export_config=cfg,
+            ),
+            ctx=ctx,
+        )
+        if workflow is not None and responses:
             for entry in responses:
                 session.add(
                     Export(
-                        render_job_id=render_job_id,
+                        render_job_id=render_job.id,
                         format=entry.format,
                         storage_key=entry.storage_key,
                         size=entry.size_bytes,

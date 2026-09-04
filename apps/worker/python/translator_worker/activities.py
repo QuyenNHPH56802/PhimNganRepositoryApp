@@ -24,8 +24,99 @@ def _empty_signature(stub: str) -> ArtifactSignature:
 
 @activity.defn(name="validate_inputs")
 async def validate_inputs(project_id: str, asset_id: str | None) -> dict:
+    """Validate project and asset before expensive operations.
+    
+    Checks:
+    - Asset exists and has storage_key
+    - Storage object exists
+    - File format is supported (video: mp4/mkv/avi/mov, audio: mp3/wav/flac)
+    - Duration is reasonable (1s to 12 hours)
+    - File size is reasonable (>0 bytes, <10GB)
+    """
     activity.logger.info("validate_inputs project_id=%s asset_id=%s", project_id, asset_id)
-    return {"ok": True, "signature": _empty_signature("validate_inputs").model_dump()}
+    
+    from uuid import UUID
+    from translator_worker.deps import make_worker_session_factory, build_storage
+    from translator_api.models import Asset, Project
+    
+    factory = make_worker_session_factory()
+    session = factory()
+    errors = []
+    
+    try:
+        # Validate project exists
+        project = session.get(Project, UUID(project_id))
+        if not project:
+            errors.append(f"Project {project_id} not found")
+            return {
+                "ok": False, 
+                "errors": errors,
+                "signature": _empty_signature("validate_inputs").model_dump()
+            }
+        
+        # If asset_id provided, validate asset
+        if asset_id:
+            asset = session.get(Asset, UUID(asset_id))
+            if not asset:
+                errors.append(f"Asset {asset_id} not found")
+            elif not asset.storage_key:
+                errors.append(f"Asset {asset_id} has no storage_key")
+            else:
+                # Validate storage object exists
+                storage = build_storage()
+                try:
+                    if not storage.exists(asset.storage_key):
+                        errors.append(f"Storage object not found: {asset.storage_key}")
+                except Exception as e:
+                    activity.logger.warning(f"Failed to check storage existence: {e}")
+                
+                # Validate file format
+                supported_video = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv", ".wmv"}
+                supported_audio = {".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a"}
+                
+                if asset.kind == "video":
+                    ext = "." + asset.storage_key.rsplit(".", 1)[-1].lower() if "." in asset.storage_key else ""
+                    if ext not in supported_video:
+                        errors.append(f"Unsupported video format: {ext}. Supported: {', '.join(supported_video)}")
+                elif asset.kind == "audio":
+                    ext = "." + asset.storage_key.rsplit(".", 1)[-1].lower() if "." in asset.storage_key else ""
+                    if ext not in supported_audio:
+                        errors.append(f"Unsupported audio format: {ext}. Supported: {', '.join(supported_audio)}")
+                
+                # Validate duration (1 second to 12 hours)
+                if asset.duration_ms is not None:
+                    min_duration_ms = 1000  # 1 second
+                    max_duration_ms = 12 * 60 * 60 * 1000  # 12 hours
+                    if asset.duration_ms < min_duration_ms:
+                        errors.append(f"Duration too short: {asset.duration_ms}ms (min: {min_duration_ms}ms)")
+                    elif asset.duration_ms > max_duration_ms:
+                        errors.append(f"Duration too long: {asset.duration_ms}ms (max: {max_duration_ms}ms / 12 hours)")
+                
+                # Validate file size (>0, <10GB)
+                if asset.size is not None:
+                    max_size = 10 * 1024 * 1024 * 1024  # 10GB
+                    if asset.size <= 0:
+                        errors.append(f"Invalid file size: {asset.size} bytes")
+                    elif asset.size > max_size:
+                        errors.append(f"File too large: {asset.size} bytes (max: {max_size} bytes / 10GB)")
+        
+        if errors:
+            activity.logger.warning(f"Validation failed: {errors}")
+            return {
+                "ok": False,
+                "errors": errors,
+                "signature": _empty_signature("validate_inputs").model_dump()
+            }
+        
+        activity.logger.info("Validation passed for project_id=%s asset_id=%s", project_id, asset_id)
+        return {
+            "ok": True,
+            "errors": [],
+            "signature": _empty_signature("validate_inputs").model_dump()
+        }
+    
+    finally:
+        session.close()
 
 
 @activity.defn(name="detect_subtitle_stream")
@@ -48,7 +139,7 @@ async def chunk_plan(project_id: str) -> dict:
 
 @activity.defn(name="asr_transcribe")
 async def asr_transcribe(project_id: str) -> dict:
-    activity.logger.info("asr_transcribe project_id=%s", project_id)
+    activity.logger.warning("⚠️ STUB asr_transcribe executed (does NOT write to DB) - project_id=%s", project_id)
     activity.heartbeat("asr_transcribe running")
     return {"ok": True, "signature": _empty_signature("asr_transcribe").model_dump()}
 
@@ -61,7 +152,7 @@ async def align_text(project_id: str) -> dict:
 
 @activity.defn(name="diarize_segments")
 async def diarize_segments(project_id: str) -> dict:
-    activity.logger.info("diarize_segments project_id=%s", project_id)
+    activity.logger.warning("⚠️ STUB diarize_segments executed (does NOT write to DB) - project_id=%s", project_id)
     return {"ok": True, "signature": _empty_signature("diarize_segments").model_dump()}
 
 
@@ -73,7 +164,7 @@ async def normalize_chinese(project_id: str) -> dict:
 
 @activity.defn(name="translate_segments")
 async def translate_segments(project_id: str) -> dict:
-    activity.logger.info("translate_segments project_id=%s", project_id)
+    activity.logger.warning("⚠️ STUB translate_segments executed (does NOT write to DB) - project_id=%s", project_id)
     return {"ok": True, "signature": _empty_signature("translate_segments").model_dump()}
 
 

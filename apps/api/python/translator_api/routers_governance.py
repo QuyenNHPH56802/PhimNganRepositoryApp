@@ -1,15 +1,16 @@
-"""Security + governance routers (auth, consent, audit, members)."""
+"""Security + governance routers (consent, audit, members)."""
 
-from __future__ import annotations
+from dataclasses import asdict
+from datetime import datetime, timezone
+from uuid import UUID, uuid4
 
-from uuid import UUID
-
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from translator_api.auth_dependency import get_identity
 from translator_api.db import get_db
-from translator_api.models import AuditLog, ProjectMember
+from translator_api.models import AuditLog, ProjectMember, User
 from translator_api.repositories.project_member_repository import ProjectMemberRepository
 from translator_api.repositories.project_repository import ProjectRepository
 from translator_api.quality_mode import QualityMode, policy_for
@@ -20,54 +21,34 @@ from translator_api.schemas import (
     MemberListResponse,
     MemberResponse,
     ProjectConsentRequest,
+    QualityModeRequest,
     QualityModeResponse,
 )
-from translator_api.security.identity import UserIdentity
 from translator_api.security.consent import (
     ConsentActionError,
     grant_consent,
     revoke_consent,
     request_consent,
 )
-from translator_api.security.rbac import Role, require_project_role
-from translator_api.security.session import (
-    SessionError,
-    issue_session_jwt,
-    verify_session_jwt,
-)
 from translator_api.security.identity import UserIdentity
+from translator_api.security.rbac import Role, require_project_role
 
 router = APIRouter()
 
 
-def _identity(authorization: str | None = Header(default=None)) -> UserIdentity:
-    if not authorization:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="missing bearer token")
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid auth scheme")
-    try:
-        return verify_session_jwt(token)
-    except SessionError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
-
-
-@router.post("/auth/login/stub", tags=["auth"])
-async def login_stub(payload: dict) -> dict:
-    """Phase 4 stub login; production is wired to OIDC providers."""
-
-    email = payload.get("email")
-    if not isinstance(email, str) or "@" not in email:
-        raise HTTPException(status_code=400, detail="email is required")
-    user_id = payload.get("user_id") or "00000000-0000-0000-0000-000000000001"
-    identity = UserIdentity(user_id=str(user_id), email=email, display_name=email.split("@")[0], provider="stub")
-    token = issue_session_jwt(identity)
-    return {"token": token, "identity": identity.as_audit_dict()}
-
-
 @router.get("/auth/me", response_model=dict, tags=["auth"])
-async def auth_me(identity: UserIdentity = Depends(_identity)) -> dict:
-    return identity.as_audit_dict()
+async def auth_me(
+    identity: UserIdentity = Depends(get_identity),
+    db: Session = Depends(get_db),
+) -> dict:
+    user = db.get(User, UUID(identity.user_id)) if identity.user_id else None
+    return {
+        "user_id": identity.user_id,
+        "email": identity.email,
+        "display_name": identity.display_name or (user.display_name if user else None),
+        "provider": identity.provider,
+        "is_admin": user.is_admin if user else True,
+    }
 
 
 @router.get(
@@ -77,7 +58,7 @@ async def auth_me(identity: UserIdentity = Depends(_identity)) -> dict:
 )
 async def list_audit(
     project_id: UUID,
-    identity: UserIdentity = Depends(_identity),
+    identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ) -> AuditLogListResponse:
     require_project_role(project_id, Role.VIEWER, db=db, identity=identity)
@@ -107,7 +88,7 @@ async def list_audit(
 async def voice_consent_request(
     voice_profile_id: UUID,
     payload: ProjectConsentRequest,
-    identity: UserIdentity = Depends(_identity),
+    identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ) -> ConsentStateResponse:
     try:
@@ -126,7 +107,7 @@ async def voice_consent_request(
 async def voice_consent_grant(
     voice_profile_id: UUID,
     payload: ProjectConsentRequest,
-    identity: UserIdentity = Depends(_identity),
+    identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ) -> ConsentStateResponse:
     try:
@@ -145,7 +126,7 @@ async def voice_consent_grant(
 async def voice_consent_revoke(
     voice_profile_id: UUID,
     payload: dict,
-    identity: UserIdentity = Depends(_identity),
+    identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ) -> ConsentStateResponse:
     try:
@@ -163,7 +144,7 @@ async def voice_consent_revoke(
 )
 async def list_members(
     project_id: UUID,
-    identity: UserIdentity = Depends(_identity),
+    identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ) -> MemberListResponse:
     require_project_role(project_id, Role.VIEWER, db=db, identity=identity)
@@ -184,7 +165,7 @@ async def list_members(
 async def add_member(
     project_id: UUID,
     payload: MemberAddRequest,
-    identity: UserIdentity = Depends(_identity),
+    identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ) -> MemberResponse:
     require_project_role(project_id, Role.OWNER, db=db, identity=identity)
@@ -192,6 +173,23 @@ async def add_member(
     member = repo.add(project_id, UUID(payload.user_id), payload.role)
     db.commit()
     return MemberResponse(user_id=str(member.user_id), role=member.role, added_at=member.added_at)
+
+
+@router.get(
+    "/projects/{project_id}/quality-mode",
+    response_model=QualityModeResponse,
+    tags=["quality"],
+)
+async def get_quality_mode(
+    project_id: UUID,
+    identity: UserIdentity = Depends(get_identity),
+    db: Session = Depends(get_db),
+) -> QualityModeResponse:
+    require_project_role(project_id, Role.VIEWER, db=db, identity=identity)
+    project = ProjectRepository(db).get(project_id)
+    mode = project.quality_mode or "balanced"
+    policy = policy_for(QualityMode(mode))
+    return QualityModeResponse(project_id=project_id, mode=mode, policy=asdict(policy))
 
 
 @router.put(
@@ -202,14 +200,19 @@ async def add_member(
 async def set_quality_mode(
     project_id: UUID,
     payload: QualityModeRequest,
-    identity: UserIdentity = Depends(_identity),
+    identity: UserIdentity = Depends(get_identity),
     db: Session = Depends(get_db),
 ) -> QualityModeResponse:
     require_project_role(project_id, Role.EDITOR, db=db, identity=identity)
     policy = policy_for(QualityMode(payload.mode))
     project = ProjectRepository(db).get(project_id)
-    project.quality_mode = policy.asr_provider
-    project.subtitle_target_cps = policy.subtitle_target_cps
+    project.quality_mode = payload.mode  # Store the mode identifier, not the ASR provider
+    # subtitle_target_cps is a setting-level concern; ensure ProjectSettings row exists.
+    from translator_api.models import ProjectSettings
+    settings_row = db.get(ProjectSettings, project_id)
+    if settings_row is None:
+        settings_row = ProjectSettings(project_id=project_id)
+        db.add(settings_row)
     db.commit()
     db.add(AuditLog(entity_type="project", entity_id=str(project_id), action="quality_mode_set", payload={"actor": identity.email, "mode": payload.mode}))
     db.commit()

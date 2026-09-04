@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from translator_api.models import Base
 
@@ -24,6 +24,9 @@ class Transcript(Base):
     model_id: Mapped[str | None] = mapped_column(String(128))
     signature: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    
+    # Relationship for eager loading
+    segments: Mapped[list["TranscriptSegment"]] = relationship("TranscriptSegment", lazy="raise")
 
 
 class TranscriptSegment(Base):

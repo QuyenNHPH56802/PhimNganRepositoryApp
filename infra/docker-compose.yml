@@ -51,14 +51,14 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: temporal
-      POSTGRES_USER: temporal
-      POSTGRES_PASSWORD: temporal
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     ports:
       - "5433:5432"
     volumes:
       - temporal_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -71,9 +71,10 @@ services:
     environment:
       DB: postgres12
       DB_PORT: 5432
-      POSTGRES_USER: temporal
-      POSTGRES_PASSWORD: temporal
+      POSTGRES_USER: postgres
+      POSTGRES_PWD: postgres
       POSTGRES_SEEDS: temporal-postgresql
+      SKIP_DB_CREATE: "false"
     ports:
       - "7233:7233"
     healthcheck:
@@ -108,8 +109,11 @@ services:
       TRANSLATOR_DATABASE_URL: postgresql+psycopg://translator:translator@postgres:5432/translator
       TRANSLATOR_TEMPORAL_ADDRESS: temporal:7233
       TRANSLATOR_S3_ENDPOINT_URL: http://minio:9000
+      TRANSLATOR_SESSION_SECRET: dev-only-secret-replace-in-production-1234567890abcdef1234567890abcdef
     ports:
       - "8000:8000"
+    volumes:
+      - ../.local-storage:/app/.local-storage
 
   worker:
     build:
@@ -119,7 +123,11 @@ services:
       temporal:
         condition: service_started
     environment:
+      TRANSLATOR_DATABASE_URL: postgresql+psycopg://translator:translator@postgres:5432/translator
       TRANSLATOR_TEMPORAL_ADDRESS: temporal:7233
+      TRANSLATOR_S3_ENDPOINT_URL: http://minio:9000
+    volumes:
+      - ../.local-storage:/app/.local-storage
 
   web:
     build:
@@ -131,6 +139,8 @@ services:
     ports:
       - "3000:3000"
     environment:
+      DOCKER_CONTAINER: "true"
+      API_INTERNAL_URL: http://api:8000
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
 
 volumes:

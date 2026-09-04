@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from typing import Literal
 
 from pydantic import BaseModel
 from translator_api.providers.base import Provider, ProviderCapabilities, ProviderContext

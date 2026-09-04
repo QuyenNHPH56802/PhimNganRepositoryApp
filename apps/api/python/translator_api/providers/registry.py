@@ -38,7 +38,6 @@ from translator_api.providers.registry_constants import (
     TRANSLATE,
     TTS,
     VOICE_CLONE,
-    VOICE_EMBEDDING,
 )
 from translator_api.providers.render import FfmpegRenderProvider
 from translator_api.providers.separation import (
@@ -61,6 +60,7 @@ from translator_api.providers.translate import (
     GeminiCompatibleHttpProvider,
     LocalLlmProvider,
     OpenAICompatibleHttpProvider,
+    PassthroughTranslateProvider,
 )
 from translator_api.providers.tts import (
     AzureCloudTtsProvider,
@@ -86,6 +86,7 @@ def bootstrap():
     registry.register(TRANSLATE, GeminiCompatibleHttpProvider())
     registry.register(TRANSLATE, ClaudeCompatibleHttpProvider())
     registry.register(TRANSLATE, LocalLlmProvider())
+    registry.register(TRANSLATE, PassthroughTranslateProvider())
 
     registry.register(QA, RuleBasedQaProvider())
     registry.register(SUBTITLE, CpsWrapperSubtitleProvider())

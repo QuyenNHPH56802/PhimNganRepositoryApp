@@ -34,7 +34,7 @@ async def _estimate_backlog(request: Request) -> int:
 def install(app: FastAPI) -> None:
     @app.middleware("http")
     async def _shedder(request: Request, call_next):
-        if request.url.path.startswith("/api/healthz"):
+        if request.url.path.startswith("/api/healthz") or request.method == "OPTIONS":
             return await call_next(request)
         backlog = await _estimate_backlog(request)
         if backlog >= HARD_THRESHOLD:

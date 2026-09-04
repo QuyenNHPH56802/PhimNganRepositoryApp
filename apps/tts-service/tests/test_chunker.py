@@ -90,4 +90,4 @@ class TestEdgeEngineHelpers:
         assert EdgeTtsEngine.format_pitch(0.0) == "+0Hz"
         assert EdgeTtsEngine.format_pitch(50.0) == "+50Hz"
         assert EdgeTtsEngine.format_pitch(-50.0) == "-50Hz"
-        assert EdgeTtsEngine.format_pitch(500.0) == "+100Hz"
+        assert EdgeTtsEngine.format_pitch(500.0) == "+100Hz"ê

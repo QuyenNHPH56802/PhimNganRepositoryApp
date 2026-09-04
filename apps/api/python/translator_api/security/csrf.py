@@ -16,8 +16,13 @@ class CsrfTokenError(RuntimeError):
 
 
 def _secret() -> bytes:
-    base = os.environ.get("TRANSLATOR_SESSION_SECRET", "phase4-insecure-dev-secret-do-not-use-in-prod")
-    return base.encode("utf-8")
+    secret = os.environ.get("TRANSLATOR_SESSION_SECRET")
+    if not secret:
+        raise RuntimeError(
+            "TRANSLATOR_SESSION_SECRET is not set. "
+            "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
+    return secret.encode("utf-8")
 
 
 def issue_csrf_token() -> str:

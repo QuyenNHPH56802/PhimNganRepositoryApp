@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -14,7 +13,7 @@ from translator_shared.workflows import QualityMode, WorkflowStatus
 class HealthResponse(BaseModel):
     status: str = "ok"
     version: str = "0.1.0"
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ProjectCreate(BaseModel):
@@ -23,6 +22,10 @@ class ProjectCreate(BaseModel):
     language_profile: str = Field(default="zh-vi", max_length=32)
     source_language: str = Field(default="zh", max_length=8)
     target_language: str = Field(default="vi", max_length=8)
+    tts_provider_id: str | None = Field(default="edge_tts", max_length=64)
+    tts_config: dict | None = None
+    translate_provider_id: str | None = Field(default="local_llm", max_length=64)
+    translate_config: dict | None = None
 
 
 class ProjectResponse(BaseModel):
@@ -31,6 +34,10 @@ class ProjectResponse(BaseModel):
     quality_mode: QualityMode
     status: WorkflowStatus
     created_at: datetime
+
+
+class ProjectUpdate(BaseModel):
+    title: str | None = Field(None, min_length=1, max_length=255)
 
 
 class ProjectListResponse(BaseModel):

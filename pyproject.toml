@@ -17,6 +17,7 @@ dependencies = [
     "temporalio>=1.4",
     "fastapi>=0.110",
     "uvicorn>=0.27",
+    "edge-tts>=6.1.12",
 ]
 
 [project.optional-dependencies]

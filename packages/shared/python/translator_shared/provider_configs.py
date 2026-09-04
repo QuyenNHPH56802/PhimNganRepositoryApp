@@ -6,9 +6,10 @@ from pydantic import BaseModel, Field
 
 
 class TranslationProviderConfig(BaseModel):
-    provider_id: str = "openai_compatible_http"
-    model_id: str = "gpt-4o-mini"
-    base_url: str = "https://api.openai.com/v1"
+    provider_id: str = "local_llm"
+    model_id: str = "qwen2.5:7b"
+    base_url: str = "http://localhost:11434"
+    api_key: str | None = None
     api_key_env: str = "TRANSLATION_OPENAI_API_KEY"
     temperature: float = 0.2
     top_p: float = 1.0
@@ -37,6 +38,7 @@ class TtsProviderConfig(BaseModel):
     provider_id: str = "vietvoice_tts"
     model_id: str = "vietvoice-1"
     voice_id: str = "vietvoice-female-1"
+    api_key: str | None = None
     default_accent: str | None = "northern"
     speed: float = 1.0
     pitch: float = 0.0

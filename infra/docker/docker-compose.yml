@@ -11,7 +11,16 @@ services:
       TRANSLATOR_DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/translator
       TRANSLATOR_TEMPORAL_ADDRESS: temporal:7233
       TRANSLATOR_STORAGE_PROVIDER_ID: local
-      TTS_SERVICE_URL: http://tts-service:3099
+      TRANSLATOR_SESSION_SECRET: dev-only-secret-replace-in-production-1234567890abcdef1234567890abcdef
+      TRANSLATOR_AUTH_STUB: "true"
+      TTS_SERVICE_URL: http://tts-service:3099/synthesize
+      # Ollama defaults — used when a project picks the `local_llm` translate
+      # provider. Override TRANSLATOR_LOCAL_LLM_MODEL to switch model.
+      TRANSLATOR_LOCAL_LLM_BACKEND: ollama
+      OLLAMA_BASE_URL: http://ollama:11434
+      TRANSLATOR_LOCAL_LLM_MODEL: qwen2.5:7b
+    volumes:
+      - translator-storage:/app/.local-storage
     depends_on: [db, temporal, tts-service]
 
   worker:
@@ -21,7 +30,15 @@ services:
     environment:
       TRANSLATOR_DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/translator
       TRANSLATOR_TEMPORAL_ADDRESS: temporal:7233
-      TTS_SERVICE_URL: http://tts-service:3099
+      TRANSLATOR_STORAGE_PROVIDER_ID: local
+      TTS_SERVICE_URL: http://tts-service:3099/synthesize
+      # Same Ollama defaults as api service — translate_segments runs in the
+      # worker, so the worker also needs to reach the Ollama container.
+      TRANSLATOR_LOCAL_LLM_BACKEND: ollama
+      OLLAMA_BASE_URL: http://ollama:11434
+      TRANSLATOR_LOCAL_LLM_MODEL: qwen2.5:7b
+    volumes:
+      - translator-storage:/app/.local-storage
     depends_on: [db, temporal, tts-service]
 
   tts-service:
@@ -51,7 +68,28 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_BASE: http://localhost:8000
+      NEXT_PUBLIC_API_BASE: http://api:8000
+      DOCKER_CONTAINER: "true"
+      STORAGE_ROOT: /app/.local-storage
+    volumes:
+      - translator-storage:/app/.local-storage
+    depends_on: [api]
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # GPU support is optional — comment out the deploy.resources block above
+    # if running on a CPU-only host. Ollama falls back to CPU automatically.
 
   db:
     image: postgres:16
@@ -63,6 +101,8 @@ services:
 
   temporal:
     image: temporalio/auto-setup:1.23.1.1
+    ports:
+      - "7233:7233"
     environment:
       DB: postgres12
       DB_PORT: "5432"
@@ -75,3 +115,7 @@ services:
     depends_on:
       db:
         condition: service_started
+
+volumes:
+  translator-storage:
+  ollama-data:

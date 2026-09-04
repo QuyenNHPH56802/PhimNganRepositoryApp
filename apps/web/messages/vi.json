@@ -5,45 +5,176 @@
     "loading": "Đang tải…",
     "forbidden": "403 — không có quyền",
     "yes": "Có",
-    "no": "Không"
+    "no": "Không",
+    "back": "Quay lại",
+    "delete": "Xoá",
+    "edit": "Sửa",
+    "rename": "Đổi tên",
+    "retry": "Thử lại",
+    "open": "Mở",
+    "close": "Đóng",
+    "search": "Tìm kiếm",
+    "filter": "Lọc",
+    "preview": "Xem trước",
+    "accept": "Chấp nhận",
+    "regenerate": "Tạo lại",
+    "download": "Tải về"
+  },
+  "app": {
+    "title": "Trung → Việt",
+    "subtitle": "Nền tảng Việt hoá Video",
+    "language": "Ngôn ngữ giao diện",
+    "version": "Phiên bản"
+  },
+  "nav": {
+    "dashboard": "Bảng điều khiển",
+    "projects": "Dự án",
+    "voices": "Thư viện giọng",
+    "settings": "Cài đặt hệ thống",
+    "admin": "Quản trị viên",
+    "newProject": "+ Dự án mới"
+  },
+  "auth": {
+    "signIn": "Đăng nhập",
+    "signOut": "Đăng xuất",
+    "loginTitle": "Đăng nhập hệ thống Translator",
+    "email": "Địa chỉ Email",
+    "loginButton": "Đăng nhập",
+    "loginHint": "Môi trường phát triển: Nhập email bất kỳ để đăng nhập tự động"
+  },
+  "dashboard": {
+    "subtitle": "Quản lý dự án, theo dõi tiến trình xử lý video Trung → Việt tự động.",
+    "createButton": "+ Tạo dự án Trung → Việt",
+    "total": "Tổng dự án",
+    "processing": "Đang xử lý",
+    "completed": "Hoàn thành",
+    "failed": "Thất bại",
+    "recent": "Dự án gần đây",
+    "viewAll": "Xem tất cả dự án →",
+    "emptyTitle": "Chưa có dự án nào",
+    "emptyDesc": "Tải lên video tiếng Trung đầu tiên để bắt đầu dịch thuật & lồng tiếng Việt.",
+    "manualCreate": "Tạo dự án mới",
+    "colTitle": "Tên dự án",
+    "colQuality": "Chất lượng",
+    "colStatus": "Trạng thái",
+    "colCreated": "Thời gian tạo"
+  },
+  "voice": {
+    "profiles": "Danh sách hồ sơ giọng đọc"
   },
   "admin": {
-    "audit": "Nhật ký",
-    "voice": "Hồ sơ giọng",
-    "dataset": "Tập dữ liệu"
+    "audit": "Nhật ký hệ thống",
+    "voice": "Hồ sơ giọng nói",
+    "dataset": "Tập dữ liệu kiểm định"
   },
   "qualityMode": {
-    "fast": "NHANH",
-    "balanced": "CÂN BẰNG",
-    "high": "CAO"
+    "fast": "TỐC ĐỘ (Fast)",
+    "balanced": "CÂN BẰNG (Balanced)",
+    "high": "CHẤT LƯỢNG CAO (High)",
+    "description": {
+      "fast": "Nhận dạng ASR & dịch phụ đề nhanh nhất. Không phân vai giọng đọc.",
+      "balanced": "WhisperX ASR + Phân vai giọng đọc + Lồng tiếng Edge TTS.",
+      "high": "Tách nhạc nền UVR5 + Nhận dạng chính xác + Nhân bản giọng đọc & Lồng tiếng."
+    }
   },
   "errors": {
     "language_pair_unsupported": "Cặp ngôn ngữ chưa được hỗ trợ",
-    "consent_required": "Yêu cầu consent của speaker",
-    "consent_revoked": "Consent đã bị thu hồi"
+    "consent_required": "Yêu cầu quyền đồng ý của giọng đọc",
+    "consent_revoked": "Quyền đồng ý đã bị thu hồi",
+    "networkError": "Không thể kết nối đến máy chủ backend",
+    "checkApiUrl": "Vui lòng kiểm tra địa chỉ API_BASE_URL và máy chủ FastAPI",
+    "uploadFailed": "Tải file lên thất bại",
+    "workflowFailed": "Tiến trình xử lý gặp lỗi"
   },
   "commands": {
-    "run": "Chạy",
-    "stop": "Dừng",
-    "upload": "Tải lên",
-    "download": "Tải về"
+    "run": "Khởi chạy",
+    "stop": "Tạm dừng",
+    "upload": "Tải video lên",
+    "download": "Tải video về",
+    "trigger": "Chạy Workflow",
+    "cancel": "Huỷ Workflow"
   },
   "status": {
     "queued": "Đang chờ",
     "processing": "Đang xử lý",
     "ready": "Sẵn sàng",
-    "failed": "Lỗi"
+    "failed": "Thất bại",
+    "draft": "Bản nháp",
+    "succeeded": "Thành công",
+    "analyzing": "Đang phân tích",
+    "asr_processing": "Đang nhận dạng ASR",
+    "translating": "Đang dịch AI",
+    "tts_processing": "Đang tổng hợp giọng",
+    "rendering": "Đang Render video",
+    "audio_mixing": "Đang trộn âm thanh",
+    "completed": "Hoàn thành"
   },
   "tts": {
     "providers": {
       "edge": {
-        "label": "Edge TTS (miễn phí)",
-        "description": "Giọng Microsoft Edge, miễn phí, không cần API key"
+        "label": "Microsoft Edge TTS (Miễn phí)",
+        "description": "Giọng đọc truyền cảm Microsoft Edge Neural, tốc độ nhanh, miễn phí"
       },
       "qwen3": {
-        "label": "Qwen3 TTS (chất lượng cao)",
-        "description": "Alibaba Qwen3, đa ngôn ngữ, cần GPU cho local"
+        "label": "Alibaba Qwen3 TTS (Cao cấp)",
+        "description": "Giọng đọc AI tự nhiên Alibaba Qwen3, tự động điều chỉnh cảm xúc"
       }
     }
+  },
+  "project": {
+    "create": "Tạo dự án dịch video",
+    "title": "Tên dự án",
+    "titlePlaceholder": "VD: Phim Ngắn Tập 1 — Tiếng Trung Sang Tiếng Việt",
+    "sourceLanguage": "Ngôn ngữ gốc",
+    "targetLanguage": "Ngôn ngữ dịch",
+    "qualityMode": "Chế độ xử lý",
+    "createButton": "Bắt đầu tạo dự án",
+    "creating": "Đang khởi tạo dự án…",
+    "dropVideo": "Kéo & thả file video tiếng Trung vào đây, hoặc click để chọn file",
+    "videoHint": "Hỗ trợ định dạng MP4, MOV, MKV. Dung lượng tối đa 10GB.",
+    "uploadedTo": "Đã lưu vào bộ nhớ MinIO",
+    "noProjects": "Chưa có dự án nào trong hệ thống",
+    "openWorkspace": "Mở không gian làm việc (Workspace)"
+  },
+  "workspace": {
+    "title": "Không gian làm việc",
+    "tabs": {
+      "transcript": "Bản ghi (ASR)",
+      "translation": "Bản dịch (Translation)",
+      "speaker": "Phân vai (Speakers)",
+      "voice": "Gán giọng (Voices)",
+      "tts": "Tổng hợp giọng (TTS)",
+      "subtitle": "Phụ đề (Subtitles)",
+      "audio": "Âm thanh (Audio)",
+      "render": "Render Video"
+    },
+    "noData": "Chưa có dữ liệu. Hãy tải video lên và kích hoạt tiến trình xử lý.",
+    "triggerWorkflow": "Kích hoạt Tiến trình Xử lý Video",
+    "workflowRunning": "Tiến trình xử lý đang chạy…",
+    "workflowDone": "Tiến trình xử lý đã hoàn tất thành công",
+    "workflowFailed": "Tiến trình xử lý gặp lỗi"
+  },
+  "panel": {
+    "empty": {
+      "transcript": "Chạy bước ASR để tạo transcript từ audio gốc.",
+      "translation": "Chạy bước Translation để tạo bản dịch Tiếng Việt.",
+      "speaker": "Chạy bước Diarization để nhận diện speaker trong audio.",
+      "voice": "Tạo voice profile từ provider TTS hoặc clone từ giọng thật.",
+      "subtitle": "Chạy bước Subtitle từ trang Project để tạo subtitle VI.",
+      "audio": "Chạy TTS để tạo voice segment trước.",
+      "render": "Cấu hình tuỳ chọn render bên dưới và chạy pipeline."
+    },
+    "noFilterMatch": "Không có segment khớp với bộ lọc hiện tại.",
+    "searchPlaceholder": "Tìm theo nội dung / speaker / timestamp",
+    "voiceNameRequired": "Vui lòng nhập tên voice"
+  },
+  "toast": {
+    "createVoiceOk": "Đã tạo voice profile",
+    "createVoiceFail": "Không thể tạo voice",
+    "updateVoiceOk": "Đã cập nhật voice profile",
+    "updateVoiceFail": "Không thể cập nhật voice",
+    "previewFail": "Không thể preview voice",
+    "noProjectSelected": "Vui lòng chọn project trước",
+    "noAudioUrl": "Không có audio URL trả về"
   }
 }

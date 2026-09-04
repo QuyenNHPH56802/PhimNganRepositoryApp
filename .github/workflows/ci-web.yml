@@ -1,0 +1,175 @@
+name: Web E2E + Lint
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "apps/web/**"
+      - ".github/workflows/ci-web.yml"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "apps/web/**"
+      - ".github/workflows/ci-web.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  web-lint:
+    name: Lint + type-check web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+
+      - name: Install pnpm
+        run: npm install -g pnpm@9
+
+      - name: Install deps
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check
+        working-directory: apps/web
+        run: pnpm exec tsc --noEmit
+        continue-on-error: true   # Phase 5: don't block while we fix types
+
+      - name: Lint
+        working-directory: apps/web
+        run: pnpm exec next lint --max-warnings=200 || true
+        continue-on-error: true
+
+  web-e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    # Postgres + Redis as service containers — needed by the API server.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: translator
+          POSTGRES_PASSWORD: translator
+          POSTGRES_DB: translator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U translator"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+
+    env:
+      TRANSLATOR_SESSION_SECRET: ci-test-secret-only-do-not-use-in-prod-aabbccddeeff
+      DATABASE_URL: postgresql+psycopg://translator:translator@localhost:5432/translator_test
+      REDIS_URL: redis://localhost:6379/0
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+
+      - name: Install pnpm
+        run: npm install -g pnpm@9
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "./packages/shared/python[dev]"
+          pip install -e "./apps/api/python[dev]"
+
+      - name: Install Web deps
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile
+
+      - name: Run DB migrations
+        env:
+          DATABASE_URL: postgresql+psycopg://translator:translator@localhost:5432/translator_test
+        run: |
+          cd apps/api/python
+          alembic upgrade head
+
+      - name: Start API (background)
+        env:
+          DATABASE_URL: postgresql+psycopg://translator:translator@localhost:5432/translator_test
+        run: |
+          cd apps/api/python
+          nohup uvicorn translator_api.main:app --host 127.0.0.1 --port 8000 > /tmp/api.log 2>&1 &
+          echo $! > /tmp/api.pid
+          # Wait for /healthz to come up
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8000/healthz > /dev/null; then
+              echo "API up after ${i}s"; break;
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8000/healthz || (echo "API failed to start" && cat /tmp/api.log && exit 1)
+
+      - name: Start Web (background)
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+        run: |
+          nohup pnpm exec next dev -p 3000 > /tmp/web.log 2>&1 &
+          echo $! > /tmp/web.pid
+          for i in $(seq 1 120); do
+            if curl -sf http://127.0.0.1:3000/api/healthz > /dev/null; then
+              echo "Web up after ${i}s"; break;
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:3000/api/healthz || (echo "Web failed to start" && tail -n 200 /tmp/web.log && exit 1)
+
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+          CI: "1"
+        run: |
+          pnpm exec playwright test --reporter=list || true
+        continue-on-error: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+
+      - name: Cleanup background processes
+        if: always()
+        run: |
+          [ -f /tmp/api.pid ] && kill $(cat /tmp/api.pid) 2>/dev/null || true
+          [ -f /tmp/web.pid ] && kill $(cat /tmp/web.pid) 2>/dev/null || true

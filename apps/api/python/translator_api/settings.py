@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     s3_endpoint_url: str | None = "http://localhost:9000"
     s3_region: str = "us-east-1"
     s3_bucket: str = "translator"
-    s3_access_key: str = "minioadmin"
-    s3_secret_key: str = "minioadmin"
+    s3_access_key: str = Field(default="")
+    s3_secret_key: str = Field(default="")
 
     storage_provider_id: str = "s3_compatible"
     local_storage_root: str = "./.local-storage"

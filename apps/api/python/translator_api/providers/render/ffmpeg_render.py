@@ -54,7 +54,9 @@ class FfmpegRenderProvider(Provider[RenderInput, RenderResponse]):
         audio_path = _materialize(payload.dubbed_audio_key, ctx) if payload.dubbed_audio_key else None
         subtitle_path = _materialize(payload.subtitle_ass_key, ctx) if payload.subtitle_ass_key else None
 
-        output_path = str(Path(tempfile.gettempdir()) / "translator-render" / f"{os.urandom(8).hex()}.mp4")
+        render_dir = Path(tempfile.gettempdir()) / "translator-render"
+        render_dir.mkdir(parents=True, exist_ok=True)
+        output_path = str(render_dir / f"{os.urandom(8).hex()}.mp4")
         cmd = [cfg.ffmpeg_path, "-y", "-i", video_path]
         if audio_path:
             cmd += ["-i", audio_path]

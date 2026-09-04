@@ -1,172 +1,466 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { api, ApiError } from "@/lib/api";
+import { Badge, Button, Card, Input, Select } from "@/components/ui";
+import { theme } from "@/lib/theme";
+import { loadToken } from "@/lib/auth";
+import type { ProviderConfig } from "@/lib/types";
 
-type ProviderConfig = {
+type ModelItem = {
   id: string;
-  provider_kind: string;
-  provider_id: string;
-  config: Record<string, unknown>;
-  is_active: boolean;
+  name: string;
+  category: string;
+  type: "cloud" | "local";
+  size: string;
+  status: "installed" | "not_installed" | "installing";
+  progress: number;
+  description: string;
 };
 
-const kinds = [
-  { key: "translate", label: "Translation" },
-  { key: "qa", label: "Translation QA" },
-  { key: "subtitle", label: "Subtitle" },
-  { key: "tts", label: "TTS" },
-  { key: "audio_separation", label: "Audio separation" },
-  { key: "render", label: "Render" },
-];
-
-const ttsProviders = [
-  { id: "edge_tts", label: "Edge TTS (free)", description: "Microsoft Edge neural voices, no API key required" },
-  { id: "dashscope_tts", label: "DashScope Qwen3 (cloud)", description: "Alibaba Qwen3, multilingual, no GPU required" },
-  { id: "qwen3_tts", label: "Qwen3 TTS (local)", description: "Alibaba Qwen3, multilingual, requires GPU for local deployment" },
-  { id: "vietvoice_tts", label: "VietVoice TTS", description: "Vietnamese-only local model; GPU recommended" },
-  { id: "vieneu_v3_turbo", label: "VieNeu TTS", description: "Vietnamese voice-clone capable; GPU recommended" },
-  { id: "cosyvoice_3", label: "CosyVoice 3", description: "Multilingual voice-clone capable; GPU required" },
-  { id: "cloud_azure", label: "Azure TTS", description: "Commercial neural TTS (AZURE_TTS_KEY)" },
-  { id: "cloud_google", label: "Google Cloud TTS", description: "Commercial neural TTS (GOOGLE_TTS_KEY)" },
-  { id: "cloud_elevenlabs", label: "ElevenLabs", description: "Commercial neural TTS with voice cloning (ELEVENLABS_API_KEY)" },
-  { id: "melotts_vi", label: "MeloTTS (VI)", description: "Lightweight Vietnamese local model" },
-];
-
-const defaults: Record<string, { provider_id: string; config: Record<string, unknown> }> = {
-  translate: { provider_id: "openai_compatible_http", config: { model_id: "gpt-4o-mini", temperature: 0.2 } },
-  qa: { provider_id: "rule_based", config: { length_ratio_min: 1.0, length_ratio_max: 3.5 } },
-  subtitle: { provider_id: "cps_wrapper", config: { target_cps: 15.0, max_chars_per_line: 42 } },
-  tts: { provider_id: "edge_tts", config: { voice_id: "vi-VN-HoaiMyNeural", speed: 1.0 } },
-  audio_separation: { provider_id: "uvr5_mdx", config: { model_id: "MDX23K" } },
-  render: { provider_id: "ffmpeg_render", config: { crf: 20, preset: "medium", subtitle_mode: "soft" } },
-};
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
 export default function SettingsPage() {
   const [configs, setConfigs] = useState<ProviderConfig[]>([]);
+  const [models, setModels] = useState<ModelItem[]>([]);
+  const modelsRef = useRef<ModelItem[]>([]);
+  // Keep the ref pointing at the latest snapshot so the poll interval can
+  // read the current list without re-creating the timer on every state update.
+  modelsRef.current = models;
   const [message, setMessage] = useState<string | null>(null);
-  const [ttsSelection, setTtsSelection] = useState<string>(defaults.tts.provider_id);
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [installingId, setInstallingId] = useState<string | null>(null);
 
-  async function load() {
-    const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-    const res = await fetch(`${base}/projects/00000000-0000-0000-0000-000000000000/provider-configs`);
-    if (res.ok) {
-      const data = (await res.json()) as ProviderConfig[];
+  // Form states for Translation LLM
+  const [translateProvider, setTranslateProvider] = useState("openai_compatible_http");
+  const [translateApiKey, setTranslateApiKey] = useState("");
+  const [translateBaseUrl, setTranslateBaseUrl] = useState("https://api.openai.com/v1");
+  const [translateModelId, setTranslateModelId] = useState("gpt-4o-mini");
+  const [translateTemp, setTranslateTemp] = useState("0.2");
+  const [showApiKey, setShowApiKey] = useState(false);
+
+  // Form states for TTS
+  const [ttsProvider, setTtsProvider] = useState("edge_tts");
+  const [ttsApiKey, setTtsApiKey] = useState("");
+  const [ttsVoiceId, setTtsVoiceId] = useState("vi-VN-HoaiMyNeural");
+  const [ttsSpeed, setTtsSpeed] = useState("1.0");
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const list = await api.listProjects();
+        if (list && list.length > 0 && list[0]) {
+          setProjectId(list[0].id);
+        }
+      } catch {
+        // user not logged in
+      }
+    })();
+  }, []);
+
+  async function loadModels() {
+    try {
+      const res = await fetch(`${API_BASE}/models/status`);
+      if (res.ok) {
+        const data = await res.json();
+        setModels(data.models ?? []);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  async function loadConfigs() {
+    try {
+      let data: ProviderConfig[] = [];
+      if (projectId) {
+        data = await api.listProviderConfigs(projectId);
+      } else {
+        const token = loadToken();
+        const res = await fetch(`${API_BASE}/system/provider-configs`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          data = await res.json();
+        }
+      }
       setConfigs(data);
+
+      const activeTranslate = data.find((c) => c.provider_kind === "translate" && c.is_active);
+      if (activeTranslate) {
+        setTranslateProvider(activeTranslate.provider_id);
+        const cfg = activeTranslate.config || {};
+        if (cfg.api_key) setTranslateApiKey(String(cfg.api_key));
+        if (cfg.base_url) setTranslateBaseUrl(String(cfg.base_url));
+        if (cfg.model_id) setTranslateModelId(String(cfg.model_id));
+        if (cfg.temperature) setTranslateTemp(String(cfg.temperature));
+      }
+
       const activeTts = data.find((c) => c.provider_kind === "tts" && c.is_active);
       if (activeTts) {
-        setTtsSelection(activeTts.provider_id);
+        setTtsProvider(activeTts.provider_id);
+        const cfg = activeTts.config || {};
+        if (cfg.api_key) setTtsApiKey(String(cfg.api_key));
+        if (cfg.voice_id) setTtsVoiceId(String(cfg.voice_id));
+        if (cfg.speed) setTtsSpeed(String(cfg.speed));
       }
+    } catch (exc) {
+      // ignore
     }
   }
 
   useEffect(() => {
-    load();
+    let cancelled = false;
+    const interval = setInterval(async () => {
+      if (cancelled) return;
+      // Stop polling once the model list is loaded and no model is still
+      // installing — at that point there's nothing useful to refresh.
+      const stillInstalling = modelsRef.current.some((m) => m.status === "installing");
+      if (modelsRef.current.length > 0 && !stillInstalling) {
+        clearInterval(interval);
+        return;
+      }
+      await loadModels();
+    }, 2500);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+    // We intentionally don't depend on `models` — the interval checks the
+    // latest snapshot via `modelsRef` so we don't restart on every update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function save(kind: string, overrideProviderId?: string) {
-    const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-    const fallback = defaults[kind];
-    const providerId = overrideProviderId ?? fallback.provider_id;
-    const body = {
-      provider_kind: kind,
-      provider_id: providerId,
-      config: fallback.config,
-      is_active: true,
-    };
-    const res = await fetch(`${base}/projects/00000000-0000-0000-0000-000000000000/provider-configs`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.ok) {
-      setMessage(`Đã lưu provider cho ${kind}`);
-      load();
-    } else {
-      setMessage(`Lỗi ${res.status}`);
+  useEffect(() => {
+    void loadConfigs();
+  }, [projectId]);
+
+  async function installModel(modelId: string) {
+    setInstallingId(modelId);
+    try {
+      const res = await fetch(`${API_BASE}/models/install`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model_id: modelId }),
+      });
+      if (res.ok) {
+        setMessage(`🚀 Đã khởi chạy tiến trình tải & cài đặt mô hình ${modelId}`);
+        await loadModels();
+      }
+    } catch (err) {
+      setMessage(`❌ Lỗi cài đặt: ${String(err)}`);
+    } finally {
+      setInstallingId(null);
     }
   }
 
-  function configFor(kind: string): ProviderConfig | undefined {
-    return configs.find((c) => c.provider_kind === kind);
+  async function saveTranslateConfig(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage("⏳ Đang ghi cấu hình vào Database...");
+    const body = {
+      provider_kind: "translate",
+      provider_id: translateProvider,
+      config: {
+        api_key: translateApiKey.trim() || undefined,
+        base_url: translateBaseUrl.trim() || undefined,
+        model_id: translateModelId.trim() || "gpt-4o-mini",
+        temperature: parseFloat(translateTemp) || 0.2,
+      },
+      is_active: true,
+    };
+    try {
+      if (projectId) {
+        await api.upsertProviderConfig(projectId, body);
+      } else {
+        const token = loadToken();
+        await fetch(`${API_BASE}/system/provider-configs`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(body),
+        });
+      }
+      setMessage(`🎉 ĐÃ LƯU THÀNH CÔNG: Cấu hình LLM [${translateModelId}] & API Key đã được lưu vào hệ thống!`);
+      await loadConfigs();
+    } catch (exc) {
+      setMessage(exc instanceof ApiError ? `❌ Lỗi lưu cấu hình: ${exc.status}` : String(exc));
+    }
   }
 
-  function renderTtsSelector() {
-    return (
-      <div style={{ padding: 12, background: "#1e293b", borderRadius: 8 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <strong>TTS</strong>
-          <button
-            onClick={() => save("tts", ttsSelection)}
-            style={{ background: "#0ea5e9", color: "#0f172a", border: 0, padding: "6px 12px", cursor: "pointer" }}
-          >
-            {configFor("tts") ? "Update" : "Save"}
-          </button>
-        </div>
-        <label htmlFor="tts-provider-select" style={{ display: "block", marginTop: 8, color: "#cbd5f5", fontSize: 12 }}>
-          Provider:
-        </label>
-        <select
-          id="tts-provider-select"
-          value={ttsSelection}
-          onChange={(e) => setTtsSelection(e.target.value)}
-          style={{
-            marginTop: 4,
-            width: "100%",
-            padding: "8px",
-            background: "#0f172a",
-            color: "#f1f5f9",
-            border: "1px solid #334155",
-            borderRadius: 4,
-          }}
-        >
-          {ttsProviders.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-        <p style={{ marginTop: 6, color: "#94a3b8", fontSize: 12 }}>
-          {ttsProviders.find((p) => p.id === ttsSelection)?.description}
-        </p>
-        <pre style={{ marginTop: 8, padding: 8, background: "#0f172a", color: "#cbd5f5", fontSize: 12, overflow: "auto" }}>
-          {(() => {
-            const cfg = configFor("tts");
-            return cfg ? JSON.stringify(cfg, null, 2) : "Not configured";
-          })()}
-        </pre>
-      </div>
-    );
+  async function saveTtsConfig(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage("⏳ Đang ghi cấu hình vào Database...");
+    const body = {
+      provider_kind: "tts",
+      provider_id: ttsProvider,
+      config: {
+        api_key: ttsApiKey.trim() || undefined,
+        voice_id: ttsVoiceId.trim() || "vi-VN-HoaiMyNeural",
+        speed: parseFloat(ttsSpeed) || 1.0,
+      },
+      is_active: true,
+    };
+    try {
+      if (projectId) {
+        await api.upsertProviderConfig(projectId, body);
+      } else {
+        const token = loadToken();
+        await fetch(`${API_BASE}/system/provider-configs`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(body),
+        });
+      }
+      setMessage(`🎉 ĐÃ LƯU THÀNH CÔNG: Cấu hình TTS Engine [${ttsProvider}] đã được lưu vào hệ thống!`);
+      await loadConfigs();
+    } catch (exc) {
+      setMessage(exc instanceof ApiError ? `❌ Lỗi lưu cấu hình: ${exc.status}` : String(exc));
+    }
+  }
+
+  function applyPreset(preset: "openai" | "deepseek" | "ollama") {
+    if (preset === "openai") {
+      setTranslateProvider("openai_compatible_http");
+      setTranslateBaseUrl("https://api.openai.com/v1");
+      setTranslateModelId("gpt-4o-mini");
+    } else if (preset === "deepseek") {
+      setTranslateProvider("openai_compatible_http");
+      setTranslateBaseUrl("https://api.deepseek.com/v1");
+      setTranslateModelId("deepseek-chat");
+    } else if (preset === "ollama") {
+      setTranslateProvider("openai_compatible_http");
+      setTranslateBaseUrl("http://localhost:11434/v1");
+      setTranslateModelId("qwen2.5:7b");
+      setTranslateApiKey(""); // Ollama local requires no API key
+    }
   }
 
   return (
-    <section style={{ maxWidth: 720 }}>
-      <h1 style={{ fontSize: 24, marginBottom: 16 }}>Provider Settings</h1>
-      <p style={{ color: "#94a3b8" }}>Phase 3: lưu config vào API. Real workflow sẽ dùng config này cho từng project.</p>
-      <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
-        {kinds.map((kind) => {
-          if (kind.key === "tts") {
-            return renderTtsSelector();
-          }
-          const cfg = configFor(kind.key);
-          return (
-            <div key={kind.key} style={{ padding: 12, background: "#1e293b", borderRadius: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <strong>{kind.label}</strong>
-                <button
-                  onClick={() => save(kind.key)}
-                  style={{ background: "#0ea5e9", color: "#0f172a", border: 0, padding: "6px 12px", cursor: "pointer" }}
-                >
-                  {cfg ? "Update" : "Save"}
-                </button>
-              </div>
-              <pre style={{ marginTop: 8, padding: 8, background: "#0f172a", color: "#cbd5f5", fontSize: 12, overflow: "auto" }}>
-                {cfg ? JSON.stringify(cfg, null, 2) : "Not configured"}
-              </pre>
+    <div style={{ padding: 24, maxWidth: 840, display: "flex", flexDirection: "column", gap: 20 }}>
+      <header>
+        <h1 style={{ margin: 0, fontSize: 22 }}>⚙️ Cài Đặt Cấu Hình API Key & Mô Hình AI</h1>
+        <p style={{ color: theme.textMuted, fontSize: 13, margin: "4px 0 0" }}>
+          Nhập API Key (OpenAI, DeepSeek, Azure, ElevenLabs) hoặc cấu hình Ollama local & mô hình tự host.
+        </p>
+      </header>
+
+      {message && (
+        <div
+          style={{
+            color: message.startsWith("❌") ? theme.danger : theme.success,
+            background: message.startsWith("❌") ? "#450a0a" : "#052e16",
+            border: `1px solid ${message.startsWith("❌") ? "#7f1d1d" : "#14532d"}`,
+            padding: 14,
+            borderRadius: 8,
+            fontSize: 14,
+            fontWeight: 600,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+          }}
+        >
+          <div>{message}</div>
+          <div style={{ marginTop: 6, fontSize: 11, fontWeight: 500, opacity: 0.85 }}>
+            Phạm vi lưu: {projectId ? `Dự án ${projectId.slice(0, 8)}…` : "Hệ thống (system-wide)"}
+          </div>
+        </div>
+      )}
+
+      {/* SECTION 1: LLM TRANSLATION CONFIGURATION WITH API KEY */}
+      <Card title="🔑 Cấu Hình Dịch Thuật LLM & API Key (Translation LLM)">
+        <form onSubmit={saveTranslateConfig} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+            <span style={{ fontSize: 12, color: theme.textMuted, fontWeight: 600 }}>Cấu hình nhanh (Presets):</span>
+            <Button size="sm" type="button" onClick={() => applyPreset("openai")}>⚡ OpenAI (GPT-4o)</Button>
+            <Button size="sm" type="button" onClick={() => applyPreset("deepseek")}>⚡ DeepSeek V3/R1</Button>
+            <Button size="sm" type="button" onClick={() => applyPreset("ollama")}>💻 Ollama Local (Không cần Key)</Button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 12, color: theme.textMuted, fontWeight: 600 }}>Provider Engine</span>
+              <Select value={translateProvider} onChange={(e) => setTranslateProvider(e.target.value)}>
+                <option value="openai_compatible_http">OpenAI Compatible HTTP (OpenAI / DeepSeek / Ollama)</option>
+                <option value="cloud_qwen">Alibaba DashScope Qwen LLM</option>
+                <option value="rule_based">Rule-Based Dictionary (Fallback Offline)</option>
+              </Select>
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 12, color: theme.textMuted, fontWeight: 600 }}>Tên Model ID</span>
+              <Input
+                value={translateModelId}
+                onChange={(e) => setTranslateModelId(e.target.value)}
+                placeholder="VD: gpt-4o-mini, deepseek-chat, qwen2.5:7b"
+                required
+              />
+            </label>
+          </div>
+
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 12, color: theme.textMuted, fontWeight: 600 }}>Base URL / Endpoint</span>
+            <Input
+              value={translateBaseUrl}
+              onChange={(e) => setTranslateBaseUrl(e.target.value)}
+              placeholder="VD: https://api.openai.com/v1 hoặc http://localhost:11434/v1"
+              required
+            />
+          </label>
+
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 12, color: theme.textMuted, fontWeight: 600 }}>API Key (Khóa bảo mật)</span>
+              <button
+                type="button"
+                onClick={() => setShowApiKey(!showApiKey)}
+                style={{ background: "none", border: "none", color: theme.accent, fontSize: 11, cursor: "pointer", padding: 0 }}
+              >
+                {showApiKey ? "👁️ Ẩn API Key" : "👁️ Hiện API Key"}
+              </button>
             </div>
-          );
-        })}
-      </div>
-      {message && <p style={{ color: "#7dd3fc", marginTop: 16 }}>{message}</p>}
-    </section>
+            <Input
+              type={showApiKey ? "text" : "password"}
+              value={translateApiKey}
+              onChange={(e) => setTranslateApiKey(e.target.value)}
+              placeholder={translateBaseUrl.includes("localhost") ? "Không bắt buộc đối với Ollama local" : "sk-proj-... / sk-..."}
+            />
+            <span style={{ fontSize: 11, color: theme.textMuted }}>
+              {translateBaseUrl.includes("localhost")
+                ? "🟢 Chế độ Local Ollama: Không cần API Key."
+                : "🔒 API Key được mã hóa và lưu trữ an toàn trong Database của bạn."}
+            </span>
+          </label>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+            <Button variant="primary" type="submit">💾 Lưu Cấu Hình LLM & API Key</Button>
+          </div>
+        </form>
+      </Card>
+
+      {/* SECTION 2: TTS CONFIGURATION */}
+      <Card title="🎙️ Cấu Hình Tổng Hợp Giọng Nói (TTS Service & API Key)">
+        <form onSubmit={saveTtsConfig} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 12, color: theme.textMuted, fontWeight: 600 }}>Engine TTS</span>
+              <Select value={ttsProvider} onChange={(e) => setTtsProvider(e.target.value)}>
+                <option value="edge_tts">Microsoft Edge TTS (Miễn phí - Không cần API Key)</option>
+                <option value="qwen3_tts">Alibaba Qwen3 TTS (Local GPU Model)</option>
+                <option value="dashscope_tts">Alibaba DashScope Qwen3 (Cloud API Key)</option>
+                <option value="cloud_azure">Microsoft Azure Neural TTS (AZURE_TTS_KEY)</option>
+                <option value="cloud_elevenlabs">ElevenLabs Voice Clone (ELEVENLABS_API_KEY)</option>
+                <option value="cloud_google">Google Cloud Text-to-Speech (GOOGLE_TTS_KEY)</option>
+                <option value="vietvoice_tts">VietVoice TTS (Local Vietnamese)</option>
+                <option value="melotts_vi">MeloTTS VI (Local Lightweight)</option>
+              </Select>
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 12, color: theme.textMuted, fontWeight: 600 }}>Giọng đọc mặc định (Voice ID)</span>
+              <Input
+                value={ttsVoiceId}
+                onChange={(e) => setTtsVoiceId(e.target.value)}
+                placeholder="VD: vi-VN-HoaiMyNeural hoặc vi-VN-NamMinhNeural"
+                required
+              />
+            </label>
+          </div>
+
+          {["cloud_azure", "cloud_elevenlabs", "cloud_google", "dashscope_tts"].includes(ttsProvider) && (
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 12, color: theme.textMuted, fontWeight: 600 }}>API Key cho Cloud TTS</span>
+              <Input
+                type="password"
+                value={ttsApiKey}
+                onChange={(e) => setTtsApiKey(e.target.value)}
+                placeholder="Nhập API Key của dịch vụ TTS Cloud"
+                required
+              />
+            </label>
+          )}
+
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+            <Button variant="primary" type="submit">💾 Lưu Cấu Hình TTS</Button>
+          </div>
+        </form>
+      </Card>
+
+      {/* SECTION 3: ONE-CLICK MODEL INSTALLER */}
+      <Card title="📦 Cài Đặt Mô Hình AI Trực Tiếp (1-Click Model Installer)">
+        <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 12 }}>
+          Tải & cài đặt trực tiếp các mô hình AI local (Qwen3, VietVoice, MeloTTS, UVR5) về máy local.
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {models.map((m) => (
+            <div
+              key={m.id}
+              style={{
+                padding: 12,
+                background: theme.bgElevated,
+                border: `1px solid ${theme.border}`,
+                borderRadius: 8,
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 6,
+                  background: theme.bgPanel,
+                  display: "grid",
+                  placeItems: "center",
+                  fontSize: 18,
+                }}
+              >
+                {m.type === "cloud" ? "☁️" : "📦"}
+              </div>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <strong style={{ fontSize: 13 }}>{m.name}</strong>
+                  <span style={{ fontSize: 11, color: theme.textMuted }}>({m.size})</span>
+                </div>
+                <div style={{ fontSize: 11, color: theme.textMuted, marginTop: 2 }}>{m.description}</div>
+
+                {m.status === "installing" && (
+                  <div style={{ marginTop: 6, width: "100%", maxWidth: 300 }}>
+                    <div style={{ fontSize: 10, color: theme.accent, marginBottom: 2 }}>
+                      Đang tải từ HuggingFace… {m.progress}%
+                    </div>
+                    <div style={{ height: 4, background: theme.bgPanel, borderRadius: 2, overflow: "hidden" }}>
+                      <div style={{ width: `${m.progress}%`, height: "100%", background: theme.accent, transition: "width 200ms ease" }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                {m.status === "installed" ? (
+                  <Badge tone="success">🟢 Sẵn sàng sử dụng</Badge>
+                ) : m.status === "installing" ? (
+                  <Badge tone="warn">⏳ Đang cài đặt {m.progress}%</Badge>
+                ) : (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={installingId === m.id}
+                    onClick={() => installModel(m.id)}
+                  >
+                    ⚡ Cài đặt ngay
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
   );
 }

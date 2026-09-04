@@ -18,6 +18,6 @@ COPY apps/worker/python/translator_worker ./apps/worker/python/translator_worker
 
 RUN pip install --upgrade pip && \
     pip install ".[worker,shared]" && \
-    pip install "psycopg[binary]>=3.2.1" "boto3>=1.34" "ffmpeg-python>=0.2"
+    pip install "psycopg[binary]>=3.2.1" "boto3>=1.34" "ffmpeg-python>=0.2" "faster-whisper>=1.0"
 
 CMD ["python", "-m", "translator_worker.main"]

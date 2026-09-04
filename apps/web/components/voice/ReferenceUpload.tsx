@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { theme } from "@/lib/theme";
 
 const CHUNK_SIZE = 5 * 1024 * 1024;
 
@@ -77,18 +78,65 @@ export function ReferenceUpload({ projectId, speakerId }: ReferenceUploadProps) 
   }, [file, consent, projectId, speakerId]);
 
   return (
-    <div className="space-y-3">
-      <input type="file" accept="audio/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-      <label className="flex items-center gap-2 text-sm">
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <input
+        type="file"
+        accept="audio/*"
+        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        style={{
+          background: theme.bgElevated,
+          border: `1px solid ${theme.border}`,
+          color: theme.text,
+          padding: "6px 10px",
+          borderRadius: 6,
+          fontSize: 13,
+        }}
+      />
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 13,
+          color: theme.text,
+        }}
+      >
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
         Tôi đã có sự đồng ý của speaker (evidence được lưu tại consent_evidence_key khi grant).
       </label>
-      <button onClick={upload} disabled={!file || !consent || status === "uploading"} className="bg-blue-600 text-white px-3 py-1 rounded disabled:bg-gray-400">
+      <button
+        onClick={upload}
+        disabled={!file || !consent || status === "uploading"}
+        style={{
+          background: theme.accentStrong,
+          color: "#0b1220",
+          border: "none",
+          padding: "6px 14px",
+          borderRadius: 6,
+          fontWeight: 600,
+          fontSize: 13,
+          cursor: !file || !consent || status === "uploading" ? "not-allowed" : "pointer",
+          opacity: !file || !consent || status === "uploading" ? 0.5 : 1,
+          alignSelf: "flex-start",
+        }}
+      >
         Upload
       </button>
-      {progress > 0 && progress < 100 && <p>Tiến độ: {progress}%</p>}
-      {error && <p className="text-red-500 text-sm">{error}</p>}
-      {status === "done" && <p className="text-green-600 text-sm">Upload xong. Profile tạo ở trạng thái pending.</p>}
+      {progress > 0 && progress < 100 && (
+        <p style={{ fontSize: 13, color: theme.textMuted, margin: 0 }}>
+          Tiến độ: {progress}%
+        </p>
+      )}
+      {error && (
+        <p style={{ color: theme.danger, fontSize: 13, margin: 0 }} role="alert">
+          {error}
+        </p>
+      )}
+      {status === "done" && (
+        <p style={{ color: theme.success, fontSize: 13, margin: 0 }}>
+          Upload xong. Profile tạo ở trạng thái pending.
+        </p>
+      )}
     </div>
   );
 }

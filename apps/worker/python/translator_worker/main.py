@@ -38,6 +38,10 @@ TRIVIAL_ACTIVITIES = [
     activities.detect_subtitle_stream,
     activities.analyze_media,
     activities.chunk_plan,
+    # align_text / diarize_segments: their providers now degrade gracefully
+    # (returning empty alignment / single-speaker fallback) instead of raising
+    # when dependencies are missing, so the rest of the workflow can run
+    # end-to-end.
     activities_providers.align_text,
 ]
 
@@ -61,6 +65,9 @@ SEPARATION_ACTIVITIES = [activities_phase3.audio_separate]
 
 
 async def main() -> None:
+    import os
+    os.environ.setdefault("TRANSLATOR_STORAGE_PROVIDER_ID", "local")
+    # API key should be set via environment variable OPENAI_API_KEY
     bootstrap()
     settings = get_settings()
     client = await Client.connect(settings.temporal_address, namespace=settings.temporal_namespace)
@@ -79,7 +86,10 @@ async def main() -> None:
             client,
             task_queue=PROJECT_QUEUE,
             workflows=workflow_classes,
-            activities=CPU_ACTIVITIES + ASR_ACTIVITIES + DIARIZE_ACTIVITIES + TTS_ACTIVITIES + SEPARATION_ACTIVITIES,
+            # FIXED: Removed stub activities (asr_transcribe, diarize_segments, translate_segments)
+            # from PROJECT_QUEUE to prevent stub execution. Real providers are registered on
+            # dedicated queues (ASR_QUEUE, DIARIZE_QUEUE, CPU_QUEUE).
+            activities=CPU_ACTIVITIES + TTS_ACTIVITIES + SEPARATION_ACTIVITIES,
         ),
         Worker(client, task_queue=ASR_QUEUE, workflows=[], activities=ASR_ACTIVITIES),
         Worker(client, task_queue=DIARIZE_QUEUE, workflows=[], activities=DIARIZE_ACTIVITIES),
