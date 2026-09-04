@@ -29,6 +29,7 @@ from translator_api.models.glossary import Glossary, GlossaryTerm  # noqa: E402,
 from translator_api.models.webhook import Webhook, WebhookDelivery  # noqa: E402,F401
 from translator_api.models.ocr import OcrRegion, TextRemovalJob  # noqa: E402,F401
 from translator_api.models.separation import SeparationTrack  # noqa: E402,F401
+from translator_api.models.voice import TtsSegment, VoiceCloneSample, VoiceProfile  # noqa: E402,F401
 from translator_api.models.misc import AuditLog, ProviderConfig  # noqa: E402,F401
 from translator_api.models.project import Project, ProjectMember, ProjectSettings  # noqa: E402,F401
 from translator_api.models.speaker import Speaker, SpeakerSegment  # noqa: E402,F401
@@ -36,7 +37,6 @@ from translator_api.models.subtitle import SubtitleSegment, SubtitleTrack  # noq
 from translator_api.models.translation import TranslationSegment, TranslationVersion  # noqa: E402,F401
 from translator_api.models.transcript import Transcript, TranscriptSegment, TranscriptWord  # noqa: E402,F401
 from translator_api.models.user import User  # noqa: E402,F401
-from translator_api.models.voice import TtsSegment, VoiceProfile  # noqa: E402,F401
 from translator_api.models.workflow import Workflow, WorkflowStep  # noqa: E402,F401
 
 __all__ = [
@@ -58,6 +58,7 @@ __all__ = [
     "TranslationVersion",
     "TranslationSegment",
     "VoiceProfile",
+    "VoiceCloneSample",
     "TtsSegment",
     "AudioTrack",
     "AudioSegment",
@@ -69,6 +70,9 @@ __all__ = [
     "Export",
     "OcrRegion",
     "TextRemovalJob",
+    "SeparationTrack",
+    "Webhook",
+    "WebhookDelivery",
     "ProviderConfig",
     "AuditLog",
 ]

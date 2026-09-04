@@ -137,4 +137,6 @@ export type Panel =
   | "glossary"
   | "ocr"
   | "separation"
+  | "voice-clone"
+  | "text-removal"
   | "progress";

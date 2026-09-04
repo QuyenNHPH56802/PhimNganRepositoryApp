@@ -30,7 +30,9 @@ from translator_api.routers_subtitles import router as multi_subtitles_router
 from translator_api.routers_batch import router as batch_router
 from translator_api.routers_templates import router as templates_router
 from translator_api.routers_ocr import router as ocr_router
+from translator_api.routers_voice_clone import router as voice_clone_router
 from translator_api.routers_separation import router as separation_router
+from translator_api.routers_text_removal import router as text_removal_router
 # Importing registry runs bootstrap() at module load, populating the default provider registry
 from translator_api.providers import registry as _provider_registry  # noqa: F401
 from translator_api.observability import configure_logging, install_fastapi, setup_telemetry
@@ -168,7 +170,9 @@ def create_app() -> FastAPI:
     app.include_router(batch_router)
     app.include_router(templates_router)
     app.include_router(ocr_router)
+    app.include_router(voice_clone_router)
     app.include_router(separation_router)
+    app.include_router(text_removal_router)
 
     @app.get("/projects/{project_id}/events", tags=["events"])
     async def stream_events(project_id: str) -> StreamingResponse:
