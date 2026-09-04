@@ -6,6 +6,7 @@ import { theme } from "@/lib/theme";
 import { useEditor } from "@/lib/store";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/toast";
+import { humanizeError } from "@/lib/errorMessage";
 
 const tracks = [
   { id: "original", label: "Original (ZH)", color: theme.speaker1 },
@@ -76,8 +77,7 @@ export function AudioPanel() {
         toast("Đã cân bằng mix tự động", "success");
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast(`Cân bằng thất bại: ${msg}`, "danger");
+      toast(humanizeError(err, "Cân bằng audio").title, "danger");
     } finally {
       setProcessing(false);
     }
@@ -145,8 +145,7 @@ export function AudioPanel() {
 
       toast("Đã upload nhạc nền thành công", "success");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast(`Upload thất bại: ${msg}`, "danger");
+      toast(humanizeError(err, "Upload nhạc nền").title, "danger");
     } finally {
       setUploading(false);
       // Reset input

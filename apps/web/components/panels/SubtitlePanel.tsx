@@ -5,6 +5,8 @@ import { useEditor } from "@/lib/store";
 import { Button, Card, EmptyState, Modal, Textarea } from "@/components/ui";
 import { theme } from "@/lib/theme";
 import { api } from "@/lib/api";
+import { useToast } from "@/lib/toast";
+import { humanizeError } from "@/lib/errorMessage";
 
 export function SubtitlePanel() {
   const subtitles = useEditor((s) => s.subtitles);
@@ -18,6 +20,7 @@ export function SubtitlePanel() {
   const setTime = useEditor((s) => s.setTime);
   const currentTimeMs = useEditor((s) => s.currentTimeMs);
   const projectId = useEditor((s) => s.projectId);
+  const toast = useToast();
 
   const [inspectorText, setInspectorText] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -33,7 +36,7 @@ export function SubtitlePanel() {
         loadSubtitles(result.segments);
       }
     } catch (err) {
-      console.error("Generate subtitles failed:", err);
+      toast(humanizeError(err, "Không thể tạo phụ đề").title, "danger");
     } finally {
       setGenerating(false);
     }

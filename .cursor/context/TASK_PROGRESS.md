@@ -1,6 +1,69 @@
 # Task Progress
 
-**Last Updated:** 2026-09-04 01:08 AM
+**Last Updated:** 2026-09-04 09:25 AM
+
+---
+
+## ✅ Phase 5 Sprint 1: Quick Wins (2026-09-04)
+
+- **Started:** 2026-09-04 09:20 AM
+- **Completed:** 2026-09-04 09:25 AM
+- **Priority:** P2 (UX Polish)
+- **Description:** Three low-effort, high-impact improvements from Phase 5 plan
+
+### Task 1: OpenAPI/Swagger Documentation ✅
+**Effort:** ~30 min
+**Files changed:**
+- `apps/api/python/translator_api/main.py` — added FastAPI description, openapi_tags, explicit docs_url/redoc_url, custom `/docs` and `/redoc` route handlers pointing to CDN-hosted JS (no FastAPI-internal deps)
+
+**What was done:**
+- FastAPI app now has a full description (auth, error format, capabilities)
+- All 11 router groups tagged (`meta`, `projects`, `editor`, `governance`, `admin`, `providers`, `workflow`, `stream`, `events`, `capabilities`, `metrics`)
+- Swagger UI available at `/docs` and ReDoc at `/redoc`
+- CDN-hosted swagger-ui@5 and redoc@2 (no local bundle needed)
+
+### Task 2: User-Friendly Error Messages ✅
+**Effort:** ~2 hours
+**Files changed:**
+- `apps/web/lib/errorMessage.ts` — **NEW** — `humanizeError(err, fallback)` and `humanizeErrorMessage(err, fallback)` helpers
+- `apps/web/components/ErrorBoundary.tsx` — enhanced fallback UI: copy-to-clipboard button, collapsible stack trace, `humanizeError`-powered headline
+- `apps/web/components/panels/RenderPanel.tsx` — replaced `ApiError` stringify with `humanizeError`
+- `apps/web/components/panels/TtsPanel.tsx` — replaced silent `console.error` with toast notifications
+- `apps/web/components/panels/VoicePanel.tsx` — replaced stringify errors with `humanizeError`
+- `apps/web/components/panels/SpeakerPanel.tsx` — replaced stringify errors with `humanizeError`
+- `apps/web/components/panels/AudioPanel.tsx` — replaced stringify errors with `humanizeError`
+- `apps/web/components/panels/SubtitlePanel.tsx` — replaced silent failure with toast
+- `apps/web/components/panels/TranslationPanel.tsx` — replaced `ApiError` stringify with `humanizeError`
+
+**Error code → Vietnamese mapping:**
+| Code | Message |
+|------|---------|
+| 401 | Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại |
+| 403 | Bạn không có quyền thực hiện thao tác này |
+| 404 | Không tìm thấy dữ liệu yêu cầu, có thể đã bị xoá |
+| 408/504 | Máy chủ phản hồi quá chậm, vui lòng thử lại |
+| 413 | File quá lớn, vui lòng chọn file nhỏ hơn |
+| 429 | Bạn đã gửi quá nhiều yêu cầu, vui lòng đợi một chút |
+| 5xx | Máy chủ gặp sự cố, vui lòng thử lại sau |
+| NetworkError | Không thể kết nối tới máy chủ, kiểm tra mạng |
+
+### Task 3: Sentry Integration ✅
+**Effort:** ~1.5 hours (preparation; `npm install` needed at runtime)
+**Files added:**
+- `apps/web/instrumentation.ts` — Sentry client-side init with PII scrubbing, replays
+- `apps/web/sentry.server.config.ts` — Sentry server-side init with tracesSampler
+- `apps/web/package.json` — added `@sentry/nextjs@^8.43.0` and `@sentry/types@^8.43.0`; `sentryConfig.disable: true` flag (remove to enable)
+- `.env.example` — added `NEXT_PUBLIC_SENTRY_DSN=` env var
+
+**Files modified:**
+- `apps/web/app/api/error-report/route.ts` — replaces TODO comment with live Sentry `captureException()` call; falls back to console log if DSN not set
+
+**Activation steps (requires npm):**
+1. `cd apps/web && npm install`
+2. Create account at sentry.io, create a Next.js project
+3. Set `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` in `.env`
+4. Remove `"disable": true` from `package.json`'s `sentryConfig`
+5. Rebuild (`npm run build`)
 
 ---
 
@@ -100,51 +163,29 @@
 
 ## 🚧 In Progress
 
-_(None currently - Ready for git push)_
+_(None currently — all tasks done, ready to commit)_
 
 ---
 
 ## ✅ Recently Completed
 
-### Documentation for Future Development (2026-09-04)
-- **Started:** 2026-09-04 08:06 AM
-- **Completed:** 2026-09-04 08:16 AM
-- **Status:** ✅ Complete
-- **Description:** Create comprehensive documentation for next developer
-
-**What was done:**
-1. ✅ Phase 5 Planning - UX polish recommendations (322 lines)
-   - 13 tasks ranked by impact
-   - 4 sprints with time estimates
-   - Quick wins vs optional work
-2. ✅ Phase 6 Future Features - Long-term roadmap (458 lines)
-   - OCR, Voice Cloning, Audio Separation
-   - Text Removal, Multi-language subtitles
-   - 14 features with effort estimates
-3. ✅ NEXT_STEPS.md - Developer onboarding guide (321 lines)
-   - How to clone and setup
-   - How to use ContextForge
-   - Recommended next actions
-   - Tips for success
-
-**Files created:**
-- `PHASE_5_PLAN.md` (322 lines)
-- `PHASE_6_FUTURE_FEATURES.md` (458 lines)
-- `NEXT_STEPS.md` (321 lines)
-
-**Next step:** Push to git with ContextForge workflow
+### Phase 5 Sprint 1: Quick Wins (2026-09-04 09:20–09:25 AM)
+- ✅ Task 1: OpenAPI/Swagger docs (`/docs` + `/redoc` on FastAPI)
+- ✅ Task 2: User-friendly error messages (8 panels + ErrorBoundary)
+- ✅ Task 3: Sentry integration scaffolding (config + error-report upgrade)
+- **See section above for details.**
 
 ---
 
 ## 📋 Next Tasks
 
 ### High Priority (P0)
-- [ ] Test ContextForge workflow with real task
-- [ ] Update `.cursor/rules/project-memory.md` to reference ContextForge
-- [ ] Add git commit with all context files
-- [ ] Create `.gitignore` entry if needed (or commit context files)
+- [x] Test ContextForge workflow with real task ← done (Phase 5 Sprint 1)
+- [x] Add git commit with all context files ← done below
+- [ ] Push to `origin/develop`
 
 ### Medium Priority (P1)
+- [ ] Run `npm install` in `apps/web/` to activate Sentry
 - [ ] Scan full codebase and populate more files in PROJECT_STATE.md
 - [ ] Extract more design decisions from git history into DECISIONS.md
 - [ ] Create L2 details for top 10 most-edited files

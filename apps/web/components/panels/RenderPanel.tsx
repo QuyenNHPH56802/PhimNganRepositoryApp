@@ -7,6 +7,7 @@ import { Badge, Button, Card, Select, StatusDot } from "@/components/ui";
 import { API_BASE_URL } from "@/lib/types";
 import { theme } from "@/lib/theme";
 import { useToast } from "@/lib/toast";
+import { humanizeError, humanizeErrorMessage } from "@/lib/errorMessage";
 
 const STAGES = [
   { id: "normalize_chinese", label: "1. Chuẩn hóa tiếng Trung", step: "normalize" },
@@ -200,8 +201,10 @@ export function RenderPanel() {
         toast(`Render thất bại: ${result.error ?? "không rõ nguyên nhân"}`, "danger");
       }
     } catch (err) {
-      setError(err instanceof ApiError ? `${err.status}: ${JSON.stringify(err.detail)}` : String(err));
+      const friendly = humanizeError(err, "Không thể khởi động render");
+      setError(friendly.title);
       setRenderProgress("");
+      toast(friendly.title, "danger");
     } finally {
       setRendering(false);
     }
@@ -220,8 +223,10 @@ export function RenderPanel() {
       pollStatus(wf.workflow_id);
       toast("Pipeline đã khởi động", "success");
     } catch (err) {
-      setError(err instanceof ApiError ? `${err.status}: ${JSON.stringify(err.detail)}` : String(err));
+      const friendly = humanizeError(err, "Không thể khởi động pipeline");
+      setError(friendly.title);
       setRenderProgress("");
+      toast(friendly.title, "danger");
     } finally {
       setSubmitting(false);
     }
@@ -238,7 +243,11 @@ export function RenderPanel() {
     try {
       const res = await fetch(`${API_BASE_URL}/projects/${projectId}/subtitles/export?format=${format}`);
       if (!res.ok) {
-        setError(`Không thể tải phụ đề ${format.toUpperCase()}: HTTP ${res.status}`);
+        const friendly = humanizeErrorMessage(
+          new ApiError(res.status, `HTTP ${res.status}`),
+          `Không thể tải phụ đề ${format.toUpperCase()}`
+        );
+        setError(friendly);
         return;
       }
       const blob = await res.blob();
@@ -251,7 +260,8 @@ export function RenderPanel() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const friendly = humanizeError(err, "Không thể tải phụ đề");
+      setError(friendly.title);
     }
   }
 

@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 
 from translator_api.routers import router
 from translator_api.routers_editor import router as editor_router
@@ -44,7 +45,37 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Translator API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(
+        title="Translator API",
+        version="0.1.0",
+        description=(
+            "API for the PhimNgan video localization platform.\n\n"
+            "Provides endpoints for project management, ASR/translation/TTS workflow, "
+            "dubbing alignment, video rendering, governance and admin operations.\n\n"
+            "## Authentication\n"
+            "Most endpoints require a session cookie or `Authorization: Bearer <token>` header. "
+            "Admin endpoints additionally require an admin user.\n\n"
+            "## Error format\n"
+            "Errors are returned as `{\"detail\": \"<message>\"}` with the appropriate HTTP status code."
+        ),
+        openapi_tags=[
+            {"name": "meta", "description": "Operational endpoints (health, auth-debug)."},
+            {"name": "projects", "description": "Project CRUD and listing."},
+            {"name": "editor", "description": "Editor APIs: transcript, translation, speaker, voice, subtitle, render."},
+            {"name": "governance", "description": "Admin-only governance endpoints."},
+            {"name": "admin", "description": "Admin console (users, datasets, providers)."},
+            {"name": "providers", "description": "Provider registry and configuration."},
+            {"name": "workflow", "description": "Workflow control (start, cancel, status)."},
+            {"name": "stream", "description": "Server-Sent Events streams."},
+            {"name": "events", "description": "Project-scoped event streams."},
+            {"name": "capabilities", "description": "Capability negotiation (client/server feature set)."},
+            {"name": "metrics", "description": "Prometheus-style metrics."},
+        ],
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
+        lifespan=lifespan,
+    )
 
     # Custom exception handler to ensure CORS headers on error responses
     @app.exception_handler(HTTPException)
@@ -138,6 +169,25 @@ def create_app() -> FastAPI:
 
     app.include_router(metrics_router)
     app.middleware("http")(observe_requests_middleware)
+
+    @app.get("/docs", include_in_schema=False, tags=["meta"])
+    async def custom_swagger_ui_html():
+        """Swagger UI for the Translator API."""
+        return get_swagger_ui_html(
+            openapi_url=app.openapi_url,
+            title=f"{app.title} - Swagger UI",
+            swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js",
+            swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css",
+        )
+
+    @app.get("/redoc", include_in_schema=False, tags=["meta"])
+    async def custom_redoc_html():
+        """ReDoc for the Translator API."""
+        return get_redoc_html(
+            openapi_url=app.openapi_url,
+            title=f"{app.title} - ReDoc",
+            redoc_js_url="https://cdn.jsdelivr.net/npm/redoc@2/bundles/redoc.standalone.js",
+        )
 
     return app
 

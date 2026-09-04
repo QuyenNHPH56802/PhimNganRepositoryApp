@@ -6,6 +6,7 @@ import { Badge, Button, Card, EmptyState } from "@/components/ui";
 import { theme } from "@/lib/theme";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/toast";
+import { humanizeError } from "@/lib/errorMessage";
 
 interface VoiceModalProps {
   voice?: {
@@ -172,8 +173,7 @@ export function VoicePanel() {
       loadVoices([...voices, result]);
       toast("Đã tạo voice profile", "success");
     } catch (err) {
-      console.error("Create voice failed:", err);
-      toast("Không thể tạo voice", "danger");
+      toast(humanizeError(err, "Không thể tạo voice").title, "danger");
     }
   }
 
@@ -185,8 +185,7 @@ export function VoicePanel() {
       loadVoices(updatedVoices);
       toast("Đã cập nhật voice profile", "success");
     } catch (err) {
-      console.error("Update voice failed:", err);
-      toast("Không thể cập nhật voice", "danger");
+      toast(humanizeError(err, "Không thể cập nhật voice").title, "danger");
     }
   }
 
@@ -201,8 +200,7 @@ export function VoicePanel() {
         toast("Không có audio URL trả về", "warn");
       }
     } catch (err) {
-      console.error("Preview failed:", err);
-      toast("Không thể preview voice", "danger");
+      toast(humanizeError(err, "Không thể preview voice").title, "danger");
     } finally {
       setPreviewingId(null);
     }

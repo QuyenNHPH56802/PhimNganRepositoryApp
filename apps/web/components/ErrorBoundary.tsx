@@ -1,6 +1,7 @@
 "use client";
 
 import React, { Component, ErrorInfo, ReactNode } from "react";
+import { humanizeError } from "@/lib/errorMessage";
 
 interface Props {
   children: ReactNode;
@@ -10,6 +11,8 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  showDetails: boolean;
+  copied: boolean;
 }
 
 /**
@@ -28,12 +31,25 @@ interface State {
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, showDetails: false, copied: false };
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { hasError: true, error, showDetails: false, copied: false };
   }
+
+  copyDetails = async () => {
+    if (!this.state.error) return;
+    const text =
+      `${this.state.error.toString()}\n\n${this.state.error.stack ?? ""}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      this.setState({ copied: true });
+      setTimeout(() => this.setState({ copied: false }), 2000);
+    } catch {
+      /* clipboard unavailable; ignore */
+    }
+  };
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Log error to console in development
@@ -72,6 +88,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       // Default fallback UI
+      const friendly = humanizeError(this.state.error, "Ứng dụng gặp lỗi không mong muốn");
       return (
         <div
           style={{
@@ -103,43 +120,77 @@ export class ErrorBoundary extends Component<Props, State> {
                 color: "#F87171",
               }}
             >
-              ⚠️ Đã xảy ra lỗi
+              ⚠️ {friendly.title}
             </h1>
             <p style={{ fontSize: "14px", color: "#CBD5E1", marginBottom: "1.5rem" }}>
-              Ứng dụng gặp lỗi không mong muốn. Bạn có thể thử tải lại trang hoặc liên hệ hỗ trợ nếu lỗi vẫn tiếp diễn.
+              {friendly.hint ??
+                "Bạn có thể thử tải lại trang hoặc liên hệ hỗ trợ nếu lỗi vẫn tiếp diễn."}
             </p>
 
-            <details
+            <div
               style={{
-                background: "#0F172A",
-                border: "1px solid #334155",
-                borderRadius: "4px",
-                padding: "1rem",
-                marginBottom: "1.5rem",
-                fontSize: "12px",
-                fontFamily: "monospace",
-                color: "#94A3B8",
-                cursor: "pointer",
+                display: "flex",
+                gap: "0.75rem",
+                alignItems: "center",
+                marginBottom: "1rem",
               }}
             >
-              <summary style={{ marginBottom: "0.5rem", fontWeight: "600" }}>
-                Chi tiết lỗi (dành cho developer)
-              </summary>
+              <button
+                onClick={() =>
+                  this.setState((s) => ({ ...s, showDetails: !s.showDetails }))
+                }
+                style={{
+                  padding: "0.25rem 0.75rem",
+                  background: "transparent",
+                  color: "#94A3B8",
+                  border: "1px solid #334155",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                }}
+              >
+                {this.state.showDetails ? "Ẩn chi tiết kỹ thuật" : "Hiện chi tiết kỹ thuật"}
+              </button>
+              <button
+                onClick={this.copyDetails}
+                style={{
+                  padding: "0.25rem 0.75rem",
+                  background: "transparent",
+                  color: "#94A3B8",
+                  border: "1px solid #334155",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                }}
+              >
+                {this.state.copied ? "✓ Đã sao chép" : "📋 Sao chép chi tiết"}
+              </button>
+            </div>
+
+            {this.state.showDetails && (
               <pre
                 style={{
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-word",
-                  margin: 0,
+                  margin: "0 0 1rem 0",
+                  padding: "1rem",
+                  background: "#0F172A",
+                  border: "1px solid #334155",
+                  borderRadius: "4px",
                   fontSize: "11px",
+                  fontFamily: "monospace",
+                  color: "#94A3B8",
+                  maxHeight: "240px",
+                  overflow: "auto",
                 }}
               >
                 {this.state.error.toString()}
                 {"\n\n"}
                 {this.state.error.stack}
               </pre>
-            </details>
+            )}
 
-            <div style={{ display: "flex", gap: "0.75rem" }}>
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
               <button
                 onClick={this.reset}
                 style={{

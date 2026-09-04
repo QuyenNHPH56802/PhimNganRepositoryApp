@@ -6,6 +6,7 @@ import { Button, Card, EmptyState, Input, Select } from "@/components/ui";
 import { speakerColor, theme } from "@/lib/theme";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/toast";
+import { humanizeError } from "@/lib/errorMessage";
 
 export function SpeakerPanel() {
   const speakers = useEditor((s) => s.speakers);
@@ -45,8 +46,7 @@ export function SpeakerPanel() {
         toast("Không có audio URL trả về", "warn");
       }
     } catch (err) {
-      console.error("Preview failed:", err);
-      toast("Không thể preview voice", "danger");
+      toast(humanizeError(err, "Không thể preview voice").title, "danger");
     } finally {
       setPreviewingId(null);
     }

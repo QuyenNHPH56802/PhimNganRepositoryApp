@@ -5,6 +5,8 @@ import { api } from "@/lib/api";
 import { Button, Card, EmptyState, Select } from "@/components/ui";
 import { theme } from "@/lib/theme";
 import { useEditor } from "@/lib/store";
+import { humanizeError } from "@/lib/errorMessage";
+import { useToast } from "@/lib/toast";
 import type { AudioSegment, TranslationSegment } from "@/lib/types";
 
 const VOICE_ASSIGNMENTS_KEY = "translator_voice_assignments";
@@ -33,6 +35,7 @@ function mergeAudioSegments(existing: AudioSegment[], incoming: AudioSegment[]):
 }
 
 export function TtsPanel() {
+  const toast = useToast();
   const translation = useEditor((s) => s.translation);
   const voices = useEditor((s) => s.voices);
   const speakers = useEditor((s) => s.speakers);
@@ -102,7 +105,7 @@ export function TtsPanel() {
       }
       if (merged.length > 0) loadAudio(mergeAudioSegments(audio, merged));
     } catch (err) {
-      console.error("TTS generation failed:", err);
+      toast(humanizeError(err, "Không thể tạo TTS").title, "danger");
     } finally {
       setGenerating(false);
       setSelectedIds(new Set());
@@ -119,7 +122,7 @@ export function TtsPanel() {
         loadAudio(mergeAudioSegments(audio, result.segments));
       }
     } catch (err) {
-      console.error("TTS generation failed:", err);
+      toast(humanizeError(err, "Không thể tạo TTS").title, "danger");
     } finally {
       setGenerating(false);
     }
@@ -135,7 +138,7 @@ export function TtsPanel() {
         loadAudio(mergeAudioSegments(audio, result.segments));
       }
     } catch (err) {
-      console.error("TTS segment generation failed:", err);
+      toast(humanizeError(err, "Không thể tạo TTS").title, "danger");
     } finally {
       setGeneratingIds((prev) => {
         const next = new Set(prev);
@@ -157,7 +160,7 @@ export function TtsPanel() {
         window.open(result.audio_url, "_blank");
       }
     } catch (err) {
-      console.error("TTS preview failed:", err);
+      toast(humanizeError(err, "Không thể preview TTS").title, "danger");
     } finally {
       setPreviewingId(null);
     }

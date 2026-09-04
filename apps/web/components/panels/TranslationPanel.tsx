@@ -7,6 +7,7 @@ import { Badge, Button, Card, EmptyState, Modal } from "@/components/ui";
 import { speakerColor, theme } from "@/lib/theme";
 import { api, ApiError } from "@/lib/api";
 import { useToast } from "@/lib/toast";
+import { humanizeError } from "@/lib/errorMessage";
 import type { TranslationSegment } from "@/lib/types";
 
 const STATUS_LABELS: Record<TranslationSegment["status"], string> = {
@@ -80,10 +81,7 @@ export function TranslationPanel() {
         toast("Không nhận được bản dịch mới từ provider", "warn");
       }
     } catch (err) {
-      const msg = err instanceof ApiError
-        ? `${err.status}: ${typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)}`
-        : err instanceof Error ? err.message : String(err);
-      toast(`Tạo lại thất bại: ${msg}`, "danger");
+      toast(humanizeError(err, "Không thể tạo lại bản dịch").title, "danger");
     } finally {
       setRegenerating(null);
     }
