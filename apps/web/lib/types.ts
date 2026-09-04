@@ -135,4 +135,6 @@ export type Panel =
   | "audio"
   | "render"
   | "glossary"
+  | "ocr"
+  | "separation"
   | "progress";

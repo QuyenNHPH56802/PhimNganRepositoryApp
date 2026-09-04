@@ -27,8 +27,9 @@ from translator_api.models.characters import CharacterAlias, CharacterProfile  #
 from translator_api.models.export import Export, RenderJob  # noqa: E402,F401
 from translator_api.models.glossary import Glossary, GlossaryTerm  # noqa: E402,F401
 from translator_api.models.webhook import Webhook, WebhookDelivery  # noqa: E402,F401
+from translator_api.models.ocr import OcrRegion, TextRemovalJob  # noqa: E402,F401
+from translator_api.models.separation import SeparationTrack  # noqa: E402,F401
 from translator_api.models.misc import AuditLog, ProviderConfig  # noqa: E402,F401
-from translator_api.models.ocr import OcrDetection, TextRemovalJob  # noqa: E402,F401
 from translator_api.models.project import Project, ProjectMember, ProjectSettings  # noqa: E402,F401
 from translator_api.models.speaker import Speaker, SpeakerSegment  # noqa: E402,F401
 from translator_api.models.subtitle import SubtitleSegment, SubtitleTrack  # noqa: E402,F401
@@ -66,7 +67,7 @@ __all__ = [
     "WorkflowStep",
     "RenderJob",
     "Export",
-    "OcrDetection",
+    "OcrRegion",
     "TextRemovalJob",
     "ProviderConfig",
     "AuditLog",

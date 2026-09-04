@@ -78,3 +78,8 @@ def get_identity(
                 detail="invalid auth scheme",
             )
     return _load_identity()
+
+
+# Backwards-compatible alias used by newer routers (glossary, etc.) that
+# follow the standard FastAPI `get_current_user_*` naming convention.
+get_current_user_optional = get_identity

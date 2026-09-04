@@ -19,6 +19,8 @@ import { AudioPanel } from "@/components/panels/AudioPanel";
 import { RenderPanel } from "@/components/panels/RenderPanel";
 import { ProgressPanel } from "@/components/panels/ProgressPanel";
 import { GlossaryEditor } from "@/components/GlossaryEditor";
+import { OcrPanel } from "@/components/panels/OcrPanel";
+import { SeparationPanel } from "@/components/panels/SeparationPanel";
 import { useWorkflowStream } from "@/lib/useWorkflowStream";
 import { useShortcuts } from "@/lib/useShortcuts";
 import { ShortcutsHelp } from "@/components/ShortcutsHelp";
@@ -34,6 +36,8 @@ const tabs: { id: Panel; label: string }[] = [
   { id: "audio", label: "Âm thanh" },
   { id: "render", label: "Render" },
   { id: "glossary", label: "Glossary" },
+  { id: "ocr", label: "OCR" },
+  { id: "separation", label: "Tách âm thanh" },
   { id: "progress", label: "Tiến trình" },
 ];
 
@@ -475,6 +479,12 @@ export default function WorkspacePage() {
     }
     if (panel === "glossary") {
       return () => <GlossaryEditor projectId={projectId} />;
+    }
+    if (panel === "ocr") {
+      return () => <OcrPanel projectId={projectId} />;
+    }
+    if (panel === "separation") {
+      return () => <SeparationPanel projectId={projectId} />;
     }
 
     switch (panel) {
