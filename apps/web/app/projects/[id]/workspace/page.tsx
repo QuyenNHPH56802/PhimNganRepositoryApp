@@ -18,6 +18,7 @@ import { SubtitlePanel } from "@/components/panels/SubtitlePanel";
 import { AudioPanel } from "@/components/panels/AudioPanel";
 import { RenderPanel } from "@/components/panels/RenderPanel";
 import { ProgressPanel } from "@/components/panels/ProgressPanel";
+import { GlossaryEditor } from "@/components/GlossaryEditor";
 import { useWorkflowStream } from "@/lib/useWorkflowStream";
 import { useShortcuts } from "@/lib/useShortcuts";
 import { ShortcutsHelp } from "@/components/ShortcutsHelp";
@@ -32,6 +33,7 @@ const tabs: { id: Panel; label: string }[] = [
   { id: "subtitle", label: "Phụ đề" },
   { id: "audio", label: "Âm thanh" },
   { id: "render", label: "Render" },
+  { id: "glossary", label: "Glossary" },
   { id: "progress", label: "Tiến trình" },
 ];
 
@@ -471,7 +473,10 @@ export default function WorkspacePage() {
     if (panel === "progress") {
       return () => <ProgressPanel projectId={projectId} workflowId={workflowId} />;
     }
-    
+    if (panel === "glossary") {
+      return () => <GlossaryEditor projectId={projectId} />;
+    }
+
     switch (panel) {
       case "transcript": return TranscriptPanel;
       case "translation": return TranslationPanel;
@@ -588,6 +593,14 @@ export default function WorkspacePage() {
           </span>
           <Button size="sm" onClick={undo}>↶ Undo</Button>
           <Button size="sm" onClick={redo}>↷ Redo</Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => window.open(`/projects/${projectId}/quality`, "_blank")}
+            title="Mở báo cáo chất lượng dịch"
+          >
+            📋 Quality
+          </Button>
           <ShortcutsHelp bindings={shortcutBindings} />
         </div>
       </header>

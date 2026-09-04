@@ -134,4 +134,5 @@ export type Panel =
   | "subtitle"
   | "audio"
   | "render"
+  | "glossary"
   | "progress";

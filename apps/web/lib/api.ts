@@ -25,7 +25,7 @@ export class ApiError extends Error {
   }
 }
 
-interface RequestOptions {
+export interface RequestOptions {
   method?: string;
   body?: unknown;
   headers?: Record<string, string>;
@@ -69,6 +69,45 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   }
   return payload as T;
 }
+
+// ─── Public helpers (thin wrappers around `request`) ────────────────────
+// Useful for one-off endpoints that don't deserve a dedicated method on
+// `api`. All wrappers respect the same auth, headers, and error semantics.
+export async function get<T>(path: string, opts?: RequestOptions): Promise<T> {
+  return request<T>(path, { ...(opts ?? {}), method: "GET" });
+}
+
+export async function post<T>(
+  path: string,
+  body?: unknown,
+  opts?: RequestOptions,
+): Promise<T> {
+  return request<T>(path, { ...(opts ?? {}), method: "POST", body });
+}
+
+export async function put<T>(
+  path: string,
+  body?: unknown,
+  opts?: RequestOptions,
+): Promise<T> {
+  return request<T>(path, { ...(opts ?? {}), method: "PUT", body });
+}
+
+export async function patch<T>(
+  path: string,
+  body?: unknown,
+  opts?: RequestOptions,
+): Promise<T> {
+  return request<T>(path, { ...(opts ?? {}), method: "PATCH", body });
+}
+
+export async function del<T = void>(path: string, opts?: RequestOptions): Promise<T> {
+  return request<T>(path, { ...(opts ?? {}), method: "DELETE" });
+}
+
+// Convenience exports — `api.delete` is a reserved word in some JS engines,
+// so callers can use the named helpers above instead.
+export const deleteRequest = del;
 
 import type {
   Project,

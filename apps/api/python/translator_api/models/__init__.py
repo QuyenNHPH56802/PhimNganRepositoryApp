@@ -26,6 +26,7 @@ from translator_api.models.audio import AudioSegment, AudioTrack  # noqa: E402,F
 from translator_api.models.characters import CharacterAlias, CharacterProfile  # noqa: E402,F401
 from translator_api.models.export import Export, RenderJob  # noqa: E402,F401
 from translator_api.models.glossary import Glossary, GlossaryTerm  # noqa: E402,F401
+from translator_api.models.webhook import Webhook, WebhookDelivery  # noqa: E402,F401
 from translator_api.models.misc import AuditLog, ProviderConfig  # noqa: E402,F401
 from translator_api.models.ocr import OcrDetection, TextRemovalJob  # noqa: E402,F401
 from translator_api.models.project import Project, ProjectMember, ProjectSettings  # noqa: E402,F401
