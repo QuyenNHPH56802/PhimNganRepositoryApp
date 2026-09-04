@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useEditor } from "@/lib/store";
 import { Button, Card, EmptyState, Input, SkeletonPanel, StatusDot } from "@/components/ui";
 import { speakerColor, theme } from "@/lib/theme";
+import { useRovingTabIndex, visuallyHidden } from "@/lib/a11y";
 import type { TranscriptSegment } from "@/lib/types";
 
 export function TranscriptPanel() {
@@ -25,6 +26,11 @@ export function TranscriptPanel() {
   }, [transcript, query]);
 
   const grouped = useMemo(() => groupBySpeaker(filteredTranscript), [filteredTranscript]);
+  const totalSegments = useMemo(() => grouped.reduce((n, g) => n + g.segments.length, 0), [grouped]);
+  const { containerProps: listProps, itemProps: listItemProps } = useRovingTabIndex({
+    itemCount: totalSegments,
+    orientation: "vertical",
+  });
 
   if (isInitialLoading && transcript.length === 0) {
     return <SkeletonPanel title="Bản ghi" rows={6} />;
@@ -105,12 +111,26 @@ export function TranscriptPanel() {
             <strong style={{ fontSize: 12 }}>{g.speakerLabel}</strong>
             <span style={{ fontSize: 11, color: theme.textMuted }}>{g.segments.length} segments</span>
           </div>
-          {g.segments.map((seg) => {
+          {g.segments.map((seg, segIdxInGroup) => {
             const isActive = currentTimeMs >= seg.start_ms && currentTimeMs < seg.end_ms;
+            // Flat index across groups for roving tabindex.
+            const flatIndex = grouped
+              .slice(0, grouped.indexOf(g))
+              .reduce((n, prev) => n + prev.segments.length, 0) + segIdxInGroup;
+            const itemProps = listItemProps(flatIndex);
             return (
               <div
                 key={seg.id}
+                {...itemProps}
+                role="button"
+                aria-label={`Segment từ ${fmt(seg.start_ms)} đến ${fmt(seg.end_ms)}: ${(seg.text || seg.raw_text || seg.normalized_text || "").slice(0, 80)}`}
                 onClick={() => setTime(seg.start_ms)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setTime(seg.start_ms);
+                  }
+                }}
                 style={{
                   padding: "10px 12px",
                   borderBottom: `1px solid ${theme.border}`,
@@ -120,6 +140,14 @@ export function TranscriptPanel() {
                   gap: 12,
                   alignItems: "center",
                   background: isActive ? "rgba(125,211,252,0.06)" : "transparent",
+                  outline: "none",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.outline = `2px solid ${theme.accent}`;
+                  e.currentTarget.style.outlineOffset = "-2px";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.outline = "none";
                 }}
               >
                 <span style={{ fontSize: 11, color: theme.textMuted, fontVariantNumeric: "tabular-nums" }}>

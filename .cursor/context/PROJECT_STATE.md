@@ -1,8 +1,8 @@
 # Project State - L1 Index
 
-**Last Updated:** 2026-09-04 10:00 AM
-**Branch:** develop (ahead 4 commits)
-**Status:** Phase 5 Sprint 3 Complete (Testing & Docs)
+**Last Updated:** 2026-09-04 10:20 AM
+**Branch:** develop (ahead 5 commits)
+**Status:** Phase 5 Sprint 4 Complete (Advanced Features) — Phase 5 done
 
 ---
 
@@ -14,7 +14,7 @@
 | Untracked Files | 12 |
 | Last Commit | Phase 4 implementation |
 | Active Features | Voice cloning, TTS providers, workflow optimization |
-| Phase 5 Status | ✅ Sprint 3 Complete (E2E + diagrams + provider guide) |
+| Phase 5 Status | ✅ All 4 sprints complete (10/13 tasks done; 3 deferred per impact/effort) |
 
 ---
 
@@ -132,6 +132,10 @@
 - `apps/web/sentry.server.config.ts` - **NEW** - Sentry server-side config
 - `apps/web/components/ShortcutsHelp.tsx` - **NEW** - Keyboard shortcuts help modal
 - `apps/web/components/EnvBadge.tsx` - **NEW** - Dev/staging environment indicator
+- `apps/web/lib/a11y.ts` - **NEW** - Accessibility utilities (roving tabindex, skip link, live region)
+- `apps/web/lib/featureFlags.ts` - **NEW** - Runtime feature flag registry
+- `apps/web/app/admin/flags/page.tsx` - **NEW** - Feature flags admin UI
+- `apps/web/app/admin/health/page.tsx` - **NEW** - System health probes dashboard
 
 **Testing:**
 - `test_provider_selection.md` - Provider test docs

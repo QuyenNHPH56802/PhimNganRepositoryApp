@@ -593,6 +593,8 @@ export default function WorkspacePage() {
       </header>
 
       <nav
+        role="tablist"
+        aria-label="Panel workspace"
         style={{
           display: "flex",
           gap: 2,
@@ -604,7 +606,27 @@ export default function WorkspacePage() {
         {tabs.map((t) => (
           <button
             key={t.id}
+            role="tab"
+            aria-selected={panel === t.id}
+            aria-controls={`panel-${t.id}`}
+            id={`tab-${t.id}`}
+            tabIndex={panel === t.id ? 0 : -1}
             onClick={() => setPanel(t.id)}
+            onKeyDown={(e) => {
+              // Arrow keys cycle through tabs (Roving tabindex).
+              if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+              e.preventDefault();
+              const idx = tabs.findIndex((x) => x.id === panel);
+              const delta = e.key === "ArrowRight" ? 1 : -1;
+              const next = (idx + delta + tabs.length) % tabs.length;
+              const nextTab = tabs[next];
+              if (nextTab) {
+                setPanel(nextTab.id);
+                queueMicrotask(() => {
+                  document.getElementById(`tab-${nextTab.id}`)?.focus();
+                });
+              }
+            }}
             style={{
               padding: "8px 14px",
               borderRadius: "6px 6px 0 0",
@@ -635,7 +657,13 @@ export default function WorkspacePage() {
           overflow: "hidden",
         }}
       >
-        <div style={{ minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+        <div
+          role="tabpanel"
+          id={`panel-${panel}`}
+          aria-labelledby={`tab-${panel}`}
+          tabIndex={0}
+          style={{ minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}
+        >
           {loadErrors.length > 0 && (
             <div
               style={{

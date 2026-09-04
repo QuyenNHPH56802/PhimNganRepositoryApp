@@ -1,6 +1,69 @@
 # Task Progress
 
-**Last Updated:** 2026-09-04 10:00 AM
+**Last Updated:** 2026-09-04 10:20 AM
+
+---
+
+## ✅ Phase 5 Sprint 4: Advanced Features (2026-09-04)
+
+- **Started:** 2026-09-04 10:05 AM
+- **Completed:** 2026-09-04 10:20 AM
+- **Priority:** P2 (Optional)
+
+### Task A: Accessibility Audit ✅
+**New utilities (`apps/web/lib/a11y.ts`):**
+- `useRovingTabIndex` — Arrow-key/Home/End navigation for list-like grids
+- `useSkipLink` — Alt+S jumps focus to "Skip to main content" link
+- `usePrefersReducedMotion` — Honors OS-level reduced-motion setting
+- `useLiveRegion` — Polite aria-live announcements for screen readers
+- `visuallyHidden` — CSS for screen-reader-only labels
+
+**Components updated:**
+- `AppShell` — added skip-to-main link, `id="main-content"`, `tabIndex=-1`
+- `workspace/page.tsx` — tabs now have `role="tab"`/`tablist`/`tabpanel`, arrow-key navigation, aria-selected, aria-controls
+- `TranscriptPanel` — segment list uses roving tabindex + Enter/Space to seek video
+- `ui.tsx Button` — added `aria-label` prop, auto-falls back to `title` for icon-only buttons
+
+### Task B: Feature Flags System ✅
+**New files:**
+- `apps/web/lib/featureFlags.ts` — registry + runtime overrides via localStorage
+- `apps/web/app/admin/flags/page.tsx` — admin UI: toggle 5 pre-registered flags
+
+**How it works:**
+1. Build-time defaults from `NEXT_PUBLIC_FLAG_<NAME>` env vars
+2. Runtime overrides from `localStorage["translator.feature_flags"]`
+3. Override > env > default
+4. Admin UI shows source (env/override/default) per flag and lets admin clear individual or all overrides
+
+**Registered flags (5):**
+- `WORKFLOW_SUBTITLE_ALIGNMENT_V2` (default: true)
+- `PIPELINE_VOICE_CLONE` (default: false)
+- `USE_NEW_AUDIO_MIXER` (default: false)
+- `ENABLE_DIAGNOSTICS_BANNER` (default: true)
+- `EXPERIMENTAL_RENDER_PIPELINE` (default: false)
+
+### Task C: Admin System Health Dashboard ✅
+**New file:**
+- `apps/web/app/admin/health/page.tsx` — probes 7 critical endpoints
+
+**Probes:**
+1. Web (Next.js) — self check
+2. Backend /healthz
+3. Backend /readyz
+4. Web /api/healthz (aggregate)
+5. OpenAPI /openapi.json
+6. Prometheus /metrics
+7. Admin /admin/overview (auth-gated)
+
+**UI:**
+- Summary cards: OK / Warn / Fail / Pending counts
+- Table with status dot, latency, error details
+- Auto-runs on mount + manual "Chạy lại" button
+- "Mẹo debug" card with per-probe remediation steps
+
+### Links added (admin home page)
+- 🚩 Feature Flags
+- 🩺 System Health
 
 ---
 

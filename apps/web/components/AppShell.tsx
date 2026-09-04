@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { theme } from "@/lib/theme";
 import { useT, SUPPORTED_LOCALES as I18N_LOCALES, LOCALE_LABELS } from "@/lib/i18n";
 import { EnvBadge } from "@/components/EnvBadge";
+import { useSkipLink } from "@/lib/a11y";
 
 function useNavItems() {
   const { t } = useT();
@@ -41,8 +42,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setSidebarOpen(false);
   }, [pathname]);
 
+  const skipLinkProps = useSkipLink("main-content");
+
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: theme.bg, color: theme.text }}>
+      {/* Skip link — only visible when focused via keyboard. */}
+      <a
+        {...skipLinkProps}
+        style={{
+          position: "absolute",
+          left: 8,
+          top: 8,
+          padding: "6px 10px",
+          background: theme.accentStrong,
+          color: "#0b1220",
+          fontWeight: 700,
+          fontSize: 13,
+          borderRadius: 4,
+          zIndex: 9999,
+          // Hidden until focused.
+          transform: "translateY(-200%)",
+          transition: "transform 120ms ease",
+        }}
+        onFocus={(e) => (e.currentTarget.style.transform = "translateY(0)")}
+        onBlur={(e) => (e.currentTarget.style.transform = "translateY(-200%)")}
+      >
+        ⏎ Bỏ qua đến nội dung chính
+      </a>
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
@@ -151,7 +177,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+      <main
+        id="main-content"
+        tabIndex={-1}
+        style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}
+      >
         <header
           style={{
             height: 52,

@@ -121,6 +121,16 @@ export default function AdminIndex() {
                     🧪 Chạy Kiểm định Benchmark (Golden Dataset) →
                   </Button>
                 </Link>
+                <Link href="/admin/flags" style={{ textDecoration: "none" }}>
+                  <Button variant="ghost" style={{ width: "100%", justifyContent: "flex-start" }}>
+                    🚩 Bật/tắt Feature Flags (runtime) →
+                  </Button>
+                </Link>
+                <Link href="/admin/health" style={{ textDecoration: "none" }}>
+                  <Button variant="ghost" style={{ width: "100%", justifyContent: "flex-start" }}>
+                    🩺 System Health Dashboard (probes) →
+                  </Button>
+                </Link>
               </div>
             </Card>
           </div>

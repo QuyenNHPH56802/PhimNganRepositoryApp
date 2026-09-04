@@ -146,6 +146,7 @@ export function Button({
   type,
   title,
   style,
+  "aria-label": ariaLabel,
 }: {
   children: React.ReactNode;
   variant?: "default" | "primary" | "ghost" | "danger";
@@ -155,6 +156,7 @@ export function Button({
   type?: "button" | "submit";
   title?: string;
   style?: React.CSSProperties;
+  "aria-label"?: string;
 }) {
   const sizes: Record<string, { padding: string; fontSize: number }> = {
     sm: { padding: "4px 10px", fontSize: 12 },
@@ -170,12 +172,15 @@ export function Button({
   };
   const v: { bg: string; fg: string; border: string; hoverBg: string } = variants[variant] ?? variants.default!;
   const sz: { padding: string; fontSize: number } = sizes[size] ?? sizes.md!;
+  // For icon-only buttons, fall back to `title` so screen readers still get a label.
+  const computedAriaLabel = ariaLabel ?? (size === "icon" ? title : undefined);
   return (
     <button
       type={type ?? "button"}
       title={title}
       disabled={disabled}
       onClick={onClick}
+      aria-label={computedAriaLabel}
       className={clsx("translator-btn")}
       style={{
         background: v.bg,
