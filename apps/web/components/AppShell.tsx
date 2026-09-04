@@ -14,6 +14,7 @@ function useNavItems() {
   return [
     { href: "/", label: t("nav.dashboard", "Bảng điều khiển"), icon: "▣" },
     { href: "/projects", label: t("nav.projects", "Dự án"), icon: "▤" },
+    { href: "/batch", label: t("nav.batch", "Batch xử lý"), icon: "⚡" },
     { href: "/voice", label: t("nav.voices", "Giọng nói"), icon: "♪" },
     { href: "/settings", label: t("nav.settings", "Cài đặt"), icon: "⚙" },
     { href: "/admin", label: t("nav.admin", "Quản trị"), icon: "★" },

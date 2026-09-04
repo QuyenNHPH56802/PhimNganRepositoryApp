@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,7 +26,7 @@ class Webhook(Base):
     )
     url: Mapped[str] = mapped_column(Text, nullable=False)
     secret: Mapped[str] = mapped_column(String(255), nullable=False)
-    events: Mapped[list[str]] = mapped_column(default_factory=list)  # JSON list
+    events: Mapped[list[str]] = mapped_column(JSON, default=list)  # JSON list
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     description: Mapped[str | None] = mapped_column(String(255))
@@ -42,7 +42,7 @@ class WebhookDelivery(Base):
         PG_UUID(as_uuid=True), ForeignKey("webhooks.id", ondelete="CASCADE"), nullable=False
     )
     event: Mapped[str] = mapped_column(String(64), nullable=False)
-    payload: Mapped[dict | None] = mapped_column(default_factory=dict)
+    payload: Mapped[dict | None] = mapped_column(JSON, default=None)
     status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
     response_body: Mapped[str | None] = mapped_column(Text, nullable=True)
     attempt: Mapped[int] = mapped_column(Integer, default=1)

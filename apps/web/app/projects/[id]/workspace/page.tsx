@@ -601,6 +601,14 @@ export default function WorkspacePage() {
           >
             📋 Quality
           </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => window.open(`/projects/${projectId}/subtitles-multi`, "_blank")}
+            title="Mở bảng phụ đề đa ngôn ngữ"
+          >
+            🌐 Multi-sub
+          </Button>
           <ShortcutsHelp bindings={shortcutBindings} />
         </div>
       </header>
